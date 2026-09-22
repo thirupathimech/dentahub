@@ -5,6 +5,7 @@ import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
 import SettingsPage from './pages/SettingsPage'
+import UsersRolesPage from './pages/UsersRolesPage'
 import { apiGet } from './api'
 import {
   Activity,
@@ -119,7 +120,8 @@ function App() {
             <Route path="/doctors" element={<DoctorsPage />} />
             <Route path="/branch" element={<BranchPage />} />
             <Route path="/settings" element={<SettingsPage />} />
-            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/branch'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon }) => (
+            <Route path="/users-roles" element={<UsersRolesPage />} />
+            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/branch', '/users-roles'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon }) => (
               <Route key={path} path={path} element={<ComingSoonPage label={label} icon={Icon} />} />
             ))}
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -262,6 +264,7 @@ function Dashboard() {
   const [loading, setLoading] = useState(true)
 
   const formattedDate = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(`${summary.date}T00:00:00`))
+  const greeting = getGreeting()
 
   useEffect(() => {
     apiGet<Summary>('/api/dashboard/summary')
@@ -270,7 +273,14 @@ function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">{formattedDate}</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">Good morning <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">Here is what is happening at your clinic today. You have <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled.</p></div><div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} caption="Live clinic total" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} caption="Scheduled for today" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Total Doctors" value={summary.totalDoctors} caption="Registered clinicians" icon={Stethoscope} tone="violet" loading={loading} /><StatCard label="Total Branches" value={summary.totalBranches} caption="Configured locations" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions /></section></div>
+  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">{formattedDate}</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">{greeting} <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">Here is what is happening at your clinic today. You have <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled.</p></div><div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} caption="Live clinic total" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} caption="Scheduled for today" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Total Doctors" value={summary.totalDoctors} caption="Registered clinicians" icon={Stethoscope} tone="violet" loading={loading} /><StatCard label="Total Branches" value={summary.totalBranches} caption="Configured locations" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions /></section></div>
+}
+
+function getGreeting() {
+  const hour = new Date().getHours()
+  if (hour < 12) return 'Good morning'
+  if (hour < 17) return 'Good afternoon'
+  return 'Good evening'
 }
 
 function StatCard({ label, value, caption, icon: Icon, tone, loading }: { label: string; value: string | number; caption: string; icon: IconType; tone: 'teal' | 'blue' | 'violet' | 'orange'; loading: boolean }) {

@@ -74,4 +74,4 @@ The UI login calls `POST /api/auth/login` and stores the returned starter sessio
 
 ## Current navigation
 
-Dashboard, Patients, Appointments, Doctors, Branch, and Settings are implemented with MySQL-backed APIs and forms. Consultation, Dental Chart, Treatment Plans, Treatments, Billing, Payments, and Users / Roles remain navigation placeholders for the next slice.
+Dashboard, Patients, Appointments, Doctors, Branch, Settings, and Users / Roles are implemented with MySQL-backed APIs and forms. Consultation, Dental Chart, Treatment Plans, Treatments, Billing, and Payments remain navigation placeholders for the next slice.
