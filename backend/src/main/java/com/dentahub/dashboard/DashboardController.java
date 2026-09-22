@@ -1,46 +1,66 @@
 package com.dentahub.dashboard;
 
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dentahub.appointment.AppointmentRepository;
+import com.dentahub.branch.BranchRepository;
+import com.dentahub.doctor.DoctorRepository;
+import com.dentahub.patient.PatientRepository;
+
 @RestController
 @RequestMapping("/api/dashboard")
 public class DashboardController {
 
+    private final PatientRepository patientRepository;
+    private final DoctorRepository doctorRepository;
+    private final BranchRepository branchRepository;
+    private final AppointmentRepository appointmentRepository;
+
+    public DashboardController(PatientRepository patientRepository, DoctorRepository doctorRepository, BranchRepository branchRepository, AppointmentRepository appointmentRepository) {
+        this.patientRepository = patientRepository;
+        this.doctorRepository = doctorRepository;
+        this.branchRepository = branchRepository;
+        this.appointmentRepository = appointmentRepository;
+    }
+
     @GetMapping("/summary")
     public DashboardSummary summary() {
-        return new DashboardSummary(
-                LocalDate.now(),
-                1284,
-                32,
-                18,
-                12450.00,
-                List.of(
-                        new Appointment("09:00 AM", "Dr. Priya Nair", "Sarah Johnson", "Routine Checkup", "confirmed"),
-                        new Appointment("10:30 AM", "Dr. Arun Kumar", "Michael Chen", "Root Canal Consultation", "in-progress"),
-                        new Appointment("12:00 PM", "Dr. Priya Nair", "Emily Williams", "Teeth Whitening", "upcoming"),
-                        new Appointment("02:30 PM", "Dr. Rahul Menon", "David Miller", "Dental Implant Review", "upcoming")
-                ));
+        LocalDate today = LocalDate.now();
+        LocalDateTime start = today.atStartOfDay();
+        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        List<DashboardAppointment> appointments = appointmentRepository.findByAppointmentDateTimeBetweenOrderByAppointmentDateTimeAsc(start, end)
+                .stream()
+                .map(appointment -> new DashboardAppointment(
+                        appointment.getAppointmentDateTime(),
+                        patientRepository.findById(appointment.getPatientId()).map(patient -> patient.getFullName()).orElse("Unknown patient"),
+                        doctorRepository.findById(appointment.getDoctorId()).map(doctor -> doctor.getFullName()).orElse("Unknown doctor"),
+                        appointment.getAppointmentType(),
+                        appointment.getStatus()))
+                .toList();
+
+        return new DashboardSummary(today, patientRepository.count(), appointments.size(), doctorRepository.count(), branchRepository.count(), appointments);
     }
 
     public record DashboardSummary(
             LocalDate date,
-            int totalPatients,
+            long totalPatients,
             int todayAppointments,
-            int activeTreatments,
-            double todayRevenue,
-            List<Appointment> appointments) {
+            long totalDoctors,
+            long totalBranches,
+            List<DashboardAppointment> appointments) {
     }
 
-    public record Appointment(
-            String time,
-            String doctor,
+    public record DashboardAppointment(
+            LocalDateTime appointmentDateTime,
             String patient,
-            String treatment,
+            String doctor,
+            String appointmentType,
             String status) {
     }
 }

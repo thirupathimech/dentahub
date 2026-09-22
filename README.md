@@ -12,7 +12,7 @@ The repository keeps the application layers together while separating the two de
 - `backend/` — Spring Boot API and MySQL integration
 - `frontend/` — React, Vite, and Tailwind UI
 
-The first slice includes the application shell, responsive side navigation, dashboard cards, today's appointments, quick actions, and a dashboard API endpoint.
+The current slice includes the application shell, responsive side navigation, a data-backed dashboard, and working Patients, Appointments, Doctors, Branch, and Settings modules. No starter records are inserted; all counts and lists come from MySQL.
 
 ## Run locally
 
@@ -74,4 +74,4 @@ The UI login calls `POST /api/auth/login` and stores the returned starter sessio
 
 ## Current navigation
 
-Dashboard, Patients, Appointments, Doctors, Consultation, Dental Chart, Treatment Plans, Treatments, Billing, Payments, Users / Roles, Branch, and Settings are included in the initial shell. The non-dashboard routes currently show module placeholders so each workflow can be added incrementally.
+Dashboard, Patients, Appointments, Doctors, Branch, and Settings are implemented with MySQL-backed APIs and forms. Consultation, Dental Chart, Treatment Plans, Treatments, Billing, Payments, and Users / Roles remain navigation placeholders for the next slice.

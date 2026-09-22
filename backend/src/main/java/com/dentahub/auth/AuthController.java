@@ -20,14 +20,17 @@ public class AuthController {
 
     private final String adminEmail;
     private final String adminPassword;
+    private final String adminName;
     private final String clinicName;
 
     public AuthController(
             @Value("${APP_ADMIN_EMAIL:admin@dentahub.com}") String adminEmail,
             @Value("${APP_ADMIN_PASSWORD:admin123}") String adminPassword,
+            @Value("${APP_ADMIN_NAME:}") String adminName,
             @Value("${APP_CLINIC_NAME:DentaHub Clinic}") String clinicName) {
         this.adminEmail = adminEmail;
         this.adminPassword = adminPassword;
+        this.adminName = adminName;
         this.clinicName = clinicName;
     }
 
@@ -40,7 +43,7 @@ public class AuthController {
 
         return ResponseEntity.ok(new LoginResponse(
                 "dentahub-demo-session",
-                new UserProfile("admin", "Arun Kumar", adminEmail, "Administrator", clinicName)));
+                new UserProfile("admin", adminName.isBlank() ? adminEmail : adminName, adminEmail, "Administrator", clinicName)));
     }
 
     public record LoginRequest(

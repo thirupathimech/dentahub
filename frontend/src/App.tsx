@@ -1,5 +1,11 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import AppointmentsPage from './pages/AppointmentsPage'
+import BranchPage from './pages/BranchPage'
+import DoctorsPage from './pages/DoctorsPage'
+import PatientsPage from './pages/PatientsPage'
+import SettingsPage from './pages/SettingsPage'
+import { apiGet } from './api'
 import {
   Activity,
   AlarmClock,
@@ -56,30 +62,27 @@ const navigation: MenuItem[] = [
 const utilityNavigation: MenuItem[] = [{ label: 'Settings', path: '/settings', icon: Settings }]
 
 type Summary = {
+  date: string
   totalPatients: number
   todayAppointments: number
-  activeTreatments: number
-  todayRevenue: number
+  totalDoctors: number
+  totalBranches: number
   appointments: Array<{
-    time: string
+    appointmentDateTime: string
     doctor: string
     patient: string
-    treatment: string
+    appointmentType: string
     status: string
   }>
 }
 
 const initialSummary: Summary = {
-  totalPatients: 1284,
-  todayAppointments: 32,
-  activeTreatments: 18,
-  todayRevenue: 12450,
-  appointments: [
-    { time: '09:00 AM', doctor: 'Dr. Priya Nair', patient: 'Sarah Johnson', treatment: 'Routine Checkup', status: 'confirmed' },
-    { time: '10:30 AM', doctor: 'Dr. Arun Kumar', patient: 'Michael Chen', treatment: 'Root Canal Consultation', status: 'in-progress' },
-    { time: '12:00 PM', doctor: 'Dr. Priya Nair', patient: 'Emily Williams', treatment: 'Teeth Whitening', status: 'upcoming' },
-    { time: '02:30 PM', doctor: 'Dr. Rahul Menon', patient: 'David Miller', treatment: 'Dental Implant Review', status: 'upcoming' },
-  ],
+  date: new Date().toISOString().slice(0, 10),
+  totalPatients: 0,
+  todayAppointments: 0,
+  totalDoctors: 0,
+  totalBranches: 0,
+  appointments: [],
 }
 
 function App() {
@@ -111,10 +114,14 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
-            {navigation.slice(1).map(({ label, path, icon: Icon }) => (
+            <Route path="/patients" element={<PatientsPage />} />
+            <Route path="/appointments" element={<AppointmentsPage />} />
+            <Route path="/doctors" element={<DoctorsPage />} />
+            <Route path="/branch" element={<BranchPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/branch'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon }) => (
               <Route key={path} path={path} element={<ComingSoonPage label={label} icon={Icon} />} />
             ))}
-            <Route path="/settings" element={<ComingSoonPage label="Settings" icon={Settings} />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
@@ -178,11 +185,17 @@ function SidebarLink({ item, collapsed, onClose }: { item: MenuItem; collapsed: 
 function Header({ onMenu }: { onMenu: () => void }) {
   const location = useLocation()
   const current = [...navigation, ...utilityNavigation].find((item) => item.path === location.pathname)
-  return <header className="flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10"><div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div><div className="flex items-center gap-2 sm:gap-4"><div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex"><Search size={16} /><input className="w-36 bg-transparent outline-none placeholder:text-slate-400" placeholder="Search anything..." /></div><button aria-label="Notifications" className="relative rounded-xl border border-slate-200 bg-white p-2.5 text-muted shadow-sm transition hover:text-teal-700"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-coral ring-2 ring-white" /></button><div className="hidden h-8 w-px bg-slate-200 sm:block" /><button className="flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#f9c3a9] text-sm font-bold text-[#82442d]">AK</div><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-ink">Arun Kumar</span><span className="block text-[10px] text-muted">Administrator</span></span><ChevronDown size={15} className="hidden text-muted sm:block" /></button></div></header>
+  const [profile] = useState<{ name?: string; role?: string } | null>(() => {
+    try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') } catch { return null }
+  })
+  const profileName = profile?.name || 'User'
+  const profileRole = profile?.role || 'Team member'
+  const initials = profileName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+  return <header className="flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10"><div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div><div className="flex items-center gap-2 sm:gap-4"><div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex"><Search size={16} /><input className="w-36 bg-transparent outline-none placeholder:text-slate-400" placeholder="Search anything..." /></div><button aria-label="Notifications" className="relative rounded-xl border border-slate-200 bg-white p-2.5 text-muted shadow-sm transition hover:text-teal-700"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-coral ring-2 ring-white" /></button><div className="hidden h-8 w-px bg-slate-200 sm:block" /><button className="flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 text-sm font-bold text-teal-700">{initials || 'U'}</div><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-ink">{profileName}</span><span className="block text-[10px] text-muted">{profileRole}</span></span><ChevronDown size={15} className="hidden text-muted sm:block" /></button></div></header>
 }
 
 function LoginPage({ onLogin }: { onLogin: () => void }) {
-  const [email, setEmail] = useState('admin@dentahub.com')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [submitting, setSubmitting] = useState(false)
@@ -248,29 +261,31 @@ function Dashboard() {
   const [summary, setSummary] = useState<Summary>(initialSummary)
   const [loading, setLoading] = useState(true)
 
+  const formattedDate = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(`${summary.date}T00:00:00`))
+
   useEffect(() => {
-    fetch('/api/dashboard/summary')
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('API unavailable')))
-      .then((data: Summary) => setSummary(data))
+    apiGet<Summary>('/api/dashboard/summary')
+      .then((data) => setSummary(data))
       .catch(() => setSummary(initialSummary))
       .finally(() => setLoading(false))
   }, [])
 
-  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">Tuesday, September 22, 2026</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">Good morning, Dr. Arun <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">Here is what is happening at your clinic today. You have <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled.</p><button className="mt-6 rounded-xl bg-white px-4 py-2.5 text-xs font-bold text-teal-700 shadow-sm transition hover:bg-teal-50">View today's schedule <span className="ml-2">→</span></button></div><div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} change="12.5%" caption="vs. last month" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} change="8.2%" caption="vs. yesterday" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Active Treatments" value={summary.activeTreatments} change="4.6%" caption="vs. last week" icon={Activity} tone="violet" loading={loading} /><StatCard label="Today's Revenue" value={`$${summary.todayRevenue.toLocaleString()}`} change="16.8%" caption="vs. yesterday" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions /></section></div>
+  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">{formattedDate}</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">Good morning <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">Here is what is happening at your clinic today. You have <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled.</p></div><div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} caption="Live clinic total" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} caption="Scheduled for today" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Total Doctors" value={summary.totalDoctors} caption="Registered clinicians" icon={Stethoscope} tone="violet" loading={loading} /><StatCard label="Total Branches" value={summary.totalBranches} caption="Configured locations" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions /></section></div>
 }
 
-function StatCard({ label, value, change, caption, icon: Icon, tone, loading }: { label: string; value: string | number; change: string; caption: string; icon: IconType; tone: 'teal' | 'blue' | 'violet' | 'orange'; loading: boolean }) {
+function StatCard({ label, value, caption, icon: Icon, tone, loading }: { label: string; value: string | number; caption: string; icon: IconType; tone: 'teal' | 'blue' | 'violet' | 'orange'; loading: boolean }) {
   const styles = { teal: 'bg-teal-50 text-teal-600', blue: 'bg-blue-50 text-blue-500', violet: 'bg-violet-50 text-violet-500', orange: 'bg-orange-50 text-orange-500' }
-  return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-muted">{label}</p><p className="heading-font mt-2 text-2xl font-extrabold tracking-tight text-ink">{loading ? <span className="inline-block h-7 w-20 animate-pulse rounded bg-slate-100" /> : value}</p></div><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${styles[tone]}`}><Icon size={19} /></span></div><div className="mt-5 flex items-center gap-2 text-[11px]"><span className="rounded-md bg-emerald-50 px-1.5 py-1 font-bold text-emerald-600">↑ {change}</span><span className="text-muted">{caption}</span></div></div>
+  return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-muted">{label}</p><p className="heading-font mt-2 text-2xl font-extrabold tracking-tight text-ink">{loading ? <span className="inline-block h-7 w-20 animate-pulse rounded bg-slate-100" /> : value}</p></div><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${styles[tone]}`}><Icon size={19} /></span></div><div className="mt-5 text-[11px] text-muted">{caption}</div></div>
 }
 
 function Appointments({ appointments }: { appointments: Summary['appointments'] }) {
-  return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft sm:p-6"><div className="flex items-center justify-between"><div><h3 className="heading-font text-base font-extrabold text-ink">Today's appointments</h3><p className="mt-1 text-xs text-muted">Keep an eye on your clinic schedule</p></div><button className="rounded-lg px-2 py-1 text-xs font-bold text-teal-600 hover:bg-teal-50">View all <span className="ml-1">→</span></button></div><div className="mt-5 divide-y divide-slate-100">{appointments.map((appointment) => <div key={`${appointment.time}-${appointment.patient}`} className="flex items-center gap-3 py-3.5 first:pt-0 last:pb-0"><div className="w-[66px] shrink-0 text-xs font-bold text-ink">{appointment.time}</div><div className="h-9 w-9 shrink-0 rounded-xl bg-[#dff3f0] p-2 text-teal-700"><UserRound size={18} /></div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-ink">{appointment.patient}</p><p className="mt-0.5 truncate text-[11px] text-muted">{appointment.treatment} · {appointment.doctor}</p></div><StatusBadge status={appointment.status} /></div>)}</div></div>
+  return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft sm:p-6"><div><h3 className="heading-font text-base font-extrabold text-ink">Today's appointments</h3><p className="mt-1 text-xs text-muted">Keep an eye on your clinic schedule</p></div>{appointments.length === 0 ? <div className="mt-5 rounded-xl border border-dashed border-slate-200 px-4 py-10 text-center text-xs text-muted">No appointments scheduled for today.</div> : <div className="mt-5 divide-y divide-slate-100">{appointments.map((appointment) => <div key={`${appointment.appointmentDateTime}-${appointment.patient}`} className="flex items-center gap-3 py-3.5 first:pt-0 last:pb-0"><div className="w-[66px] shrink-0 text-xs font-bold text-ink">{new Date(appointment.appointmentDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div><div className="h-9 w-9 shrink-0 rounded-xl bg-[#dff3f0] p-2 text-teal-700"><UserRound size={18} /></div><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-ink">{appointment.patient}</p><p className="mt-0.5 truncate text-[11px] text-muted">{appointment.appointmentType} · {appointment.doctor}</p></div><StatusBadge status={appointment.status} /></div>)}</div>}</div>
 }
 
 function StatusBadge({ status }: { status: string }) {
-  const config = { confirmed: ['Confirmed', 'bg-emerald-50 text-emerald-600'], 'in-progress': ['In progress', 'bg-amber-50 text-amber-600'], upcoming: ['Upcoming', 'bg-slate-100 text-slate-500'] }[status] ?? ['Upcoming', 'bg-slate-100 text-slate-500']
-  return <span className={`hidden rounded-md px-2 py-1 text-[10px] font-bold sm:block ${config[1]}`}>{config[0]}</span>
+  const config: Record<string, string[]> = { scheduled: ['Scheduled', 'bg-blue-50 text-blue-600'], confirmed: ['Confirmed', 'bg-emerald-50 text-emerald-600'], completed: ['Completed', 'bg-teal-50 text-teal-700'], cancelled: ['Cancelled', 'bg-rose-50 text-rose-600'], no_show: ['No show', 'bg-slate-100 text-slate-500'] }
+  const value = config[status.toLowerCase()] ?? ['Scheduled', 'bg-slate-100 text-slate-500']
+  return <span className={`hidden rounded-md px-2 py-1 text-[10px] font-bold sm:block ${value[1]}`}>{value[0]}</span>
 }
 
 function QuickActions() {
