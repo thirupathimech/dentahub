@@ -70,10 +70,33 @@ html.dark input.bg-transparent, html.dark textarea.bg-transparent { background-c
 html.dark option { background-color: var(--surface); color: var(--ink); }
 html.dark .hover\:bg-white:hover { background-color: var(--surface); }
 html.dark .hover\:bg-slate-50:hover { background-color: var(--surface-muted); }
+html.dark .hover\:bg-slate-50\/60:hover { background-color: #24444a; }
 html.dark .hover\:bg-slate-100:hover { background-color: #243b40; }
 html.dark .hover\:bg-teal-50:hover { background-color: #214047; }
 html.dark .hover\:text-ink:hover { color: var(--ink); }
 html.dark .shadow-soft { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18); }
+
+html.dark tbody tr:hover {
+  color: #f2ffff;
+}
+
+html.dark tbody tr:hover .text-ink {
+  color: #f2ffff;
+}
+
+html.dark tbody tr:hover .text-muted {
+  color: #c5dadd;
+}
+
+html.dark .fixed.inset-0 > .bg-white {
+  background-color: #203a40;
+  border: 1px solid #466970;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+html.dark .bg-ink\/30 {
+  background-color: rgba(4, 12, 15, 0.72);
+}
 
 .app-toolbar {
   background-color: rgba(246, 251, 251, 0.92);
