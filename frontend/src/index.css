@@ -105,7 +105,8 @@ html.dark .bg-ink\/30 {
 
 .toolbar-search,
 .toolbar-action,
-.toolbar-dropdown {
+.toolbar-dropdown,
+.toolbar-search-results {
   background-color: var(--surface);
   border-color: var(--border-strong);
 }
@@ -139,7 +140,8 @@ html.dark .app-toolbar {
 
 html.dark .toolbar-search,
 html.dark .toolbar-action,
-html.dark .toolbar-dropdown {
+html.dark .toolbar-dropdown,
+html.dark .toolbar-search-results {
   background-color: #192f34;
   border-color: #31545a;
 }
@@ -160,5 +162,9 @@ html.dark .toolbar-profile:hover {
 }
 
 html.dark .toolbar-dropdown {
+  box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32);
+}
+
+html.dark .toolbar-search-results {
   box-shadow: 0 18px 36px rgba(0, 0, 0, 0.32);
 }

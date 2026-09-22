@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
-import { NavLink, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AppointmentsPage from './pages/AppointmentsPage'
 import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
@@ -137,7 +137,7 @@ function App() {
     <div className="min-h-screen bg-cream text-ink">
       <Sidebar open={sidebarOpen} collapsed={collapsed} permissions={permissions} onClose={() => setSidebarOpen(false)} onLogout={logout} />
       <main className={`min-h-screen transition-all duration-300 ${collapsed ? 'lg:pl-[88px]' : 'lg:pl-[260px]'}`}>
-        <Header darkMode={darkMode} onMenu={() => setSidebarOpen(true)} onToggleTheme={() => setDarkMode((value) => !value)} />
+        <Header permissions={permissions} darkMode={darkMode} onMenu={() => setSidebarOpen(true)} onToggleTheme={() => setDarkMode((value) => !value)} />
         <div className="mx-auto max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-10">
           <Routes>
             <Route path="/" element={can('dashboard') ? <Dashboard permissions={permissions} /> : firstAllowedPath !== '/' ? <Navigate to={firstAllowedPath} replace /> : <AccessDenied />} />
@@ -211,9 +211,12 @@ function SidebarLink({ item, collapsed, onClose }: { item: MenuItem; collapsed: 
   return <NavLink to={item.path} onClick={onClose} title={collapsed ? item.label : undefined} className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition ${collapsed ? 'lg:justify-center' : ''} ${isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-500 hover:bg-slate-50 hover:text-ink'}`}><Icon size={18} strokeWidth={2} /><span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span></NavLink>
 }
 
-function Header({ darkMode, onMenu, onToggleTheme }: { darkMode: boolean; onMenu: () => void; onToggleTheme: () => void }) {
+function Header({ permissions, darkMode, onMenu, onToggleTheme }: { permissions: string[]; darkMode: boolean; onMenu: () => void; onToggleTheme: () => void }) {
   const location = useLocation()
+  const navigate = useNavigate()
   const current = [...navigation, ...utilityNavigation].find((item) => item.path === location.pathname)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchOpen, setSearchOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [profile] = useState<{ name?: string; role?: string } | null>(() => {
@@ -222,11 +225,37 @@ function Header({ darkMode, onMenu, onToggleTheme }: { darkMode: boolean; onMenu
   const profileName = profile?.name || 'User'
   const profileRole = profile?.role || 'Team member'
   const initials = profileName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
+  const searchableItems = [...navigation, ...utilityNavigation].filter((item) => permissions.includes(item.permission))
+  const searchResults = searchQuery.trim()
+    ? searchableItems.filter((item) => `${item.label} ${item.path}`.toLowerCase().includes(searchQuery.trim().toLowerCase())).slice(0, 6)
+    : []
+  const goToSearchResult = (path: string) => {
+    navigate(path)
+    setSearchQuery('')
+    setSearchOpen(false)
+  }
   return <>
     <header className="app-toolbar flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10">
       <div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div>
       <div className="flex items-center gap-2 sm:gap-4">
-        <div className="toolbar-search hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex"><Search size={16} /><input className="w-36 bg-transparent outline-none placeholder:text-slate-400" placeholder="Search anything..." /></div>
+        <div className="toolbar-search relative hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex">
+          <Search size={16} />
+          <input
+            aria-label="Search pages"
+            className="w-36 bg-transparent outline-none placeholder:text-slate-400"
+            placeholder="Search pages..."
+            value={searchQuery}
+            onFocus={() => setSearchOpen(true)}
+            onChange={(event) => { setSearchQuery(event.target.value); setSearchOpen(true) }}
+            onKeyDown={(event) => {
+              if (event.key === 'Escape') { setSearchQuery(''); setSearchOpen(false) }
+              if (event.key === 'Enter' && searchResults[0]) goToSearchResult(searchResults[0].path)
+            }}
+          />
+          {searchOpen && searchQuery.trim() && <div className="toolbar-search-results absolute left-0 top-[calc(100%+10px)] z-50 w-64 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
+            {searchResults.length > 0 ? searchResults.map(({ label, path, icon: Icon }) => <button key={path} type="button" onClick={() => goToSearchResult(path)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-teal-50 hover:text-teal-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600"><Icon size={15} /></span><span><span className="block text-xs font-bold text-ink">{label}</span><span className="block text-[10px] text-muted">Open section</span></span></button>) : <p className="px-3 py-3 text-xs font-semibold text-muted">No matching pages found.</p>}
+          </div>}
+        </div>
         <button type="button" aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-pressed={darkMode} onClick={onToggleTheme} className="toolbar-action rounded-xl border border-slate-200 bg-white p-2.5 text-muted shadow-sm transition hover:text-teal-700">
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>

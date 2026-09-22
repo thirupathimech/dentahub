@@ -18,7 +18,6 @@ import com.dentahub.doctor.DoctorRepository;
 import com.dentahub.patient.PatientRepository;
 
 import jakarta.validation.Valid;
-import jakarta.validation.constraints.FutureOrPresent;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
@@ -101,7 +100,7 @@ public class AppointmentController {
     public record AppointmentRequest(
             @NotNull Long patientId,
             @NotNull Long doctorId,
-            @NotNull @FutureOrPresent LocalDateTime appointmentDateTime,
+            @NotNull LocalDateTime appointmentDateTime,
             @NotBlank String appointmentType,
             String status,
             String notes) {
