@@ -6,12 +6,11 @@ import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
 import SettingsPage from './pages/SettingsPage'
 import UsersRolesPage from './pages/UsersRolesPage'
-import { apiGet } from './api'
+import { apiGet, apiPost } from './api'
 import { ALL_PERMISSION_KEYS } from './permissions'
 import {
   Activity,
   AlarmClock,
-  Bell,
   CalendarDays,
   ChevronDown,
   CircleDollarSign,
@@ -25,12 +24,14 @@ import {
   Mail,
   Menu,
   MessageSquareMore,
+  Moon,
   PanelLeftClose,
   PanelLeftOpen,
   Search,
   Settings,
   ShieldCheck,
   Stethoscope,
+  Sun,
   UserRound,
   UsersRound,
   X,
@@ -105,6 +106,12 @@ function App() {
   const [permissions, setPermissions] = useState<string[]>(readStoredPermissions)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dentahub_theme') === 'dark')
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    localStorage.setItem('dentahub_theme', darkMode ? 'dark' : 'light')
+  }, [darkMode])
 
   if (!authenticated) {
     return (
@@ -130,7 +137,7 @@ function App() {
     <div className="min-h-screen bg-cream text-ink">
       <Sidebar open={sidebarOpen} collapsed={collapsed} permissions={permissions} onClose={() => setSidebarOpen(false)} onLogout={logout} />
       <main className={`min-h-screen transition-all duration-300 ${collapsed ? 'lg:pl-[88px]' : 'lg:pl-[260px]'}`}>
-        <Header onMenu={() => setSidebarOpen(true)} />
+        <Header darkMode={darkMode} onMenu={() => setSidebarOpen(true)} onToggleTheme={() => setDarkMode((value) => !value)} />
         <div className="mx-auto max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-10">
           <Routes>
             <Route path="/" element={can('dashboard') ? <Dashboard permissions={permissions} /> : firstAllowedPath !== '/' ? <Navigate to={firstAllowedPath} replace /> : <AccessDenied />} />
@@ -204,16 +211,90 @@ function SidebarLink({ item, collapsed, onClose }: { item: MenuItem; collapsed: 
   return <NavLink to={item.path} onClick={onClose} title={collapsed ? item.label : undefined} className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition ${collapsed ? 'lg:justify-center' : ''} ${isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-500 hover:bg-slate-50 hover:text-ink'}`}><Icon size={18} strokeWidth={2} /><span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span></NavLink>
 }
 
-function Header({ onMenu }: { onMenu: () => void }) {
+function Header({ darkMode, onMenu, onToggleTheme }: { darkMode: boolean; onMenu: () => void; onToggleTheme: () => void }) {
   const location = useLocation()
   const current = [...navigation, ...utilityNavigation].find((item) => item.path === location.pathname)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const [profile] = useState<{ name?: string; role?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') } catch { return null }
   })
   const profileName = profile?.name || 'User'
   const profileRole = profile?.role || 'Team member'
   const initials = profileName.split(' ').map((part) => part[0]).join('').slice(0, 2).toUpperCase()
-  return <header className="flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10"><div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div><div className="flex items-center gap-2 sm:gap-4"><div className="hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex"><Search size={16} /><input className="w-36 bg-transparent outline-none placeholder:text-slate-400" placeholder="Search anything..." /></div><button aria-label="Notifications" className="relative rounded-xl border border-slate-200 bg-white p-2.5 text-muted shadow-sm transition hover:text-teal-700"><Bell size={18} /><span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-coral ring-2 ring-white" /></button><div className="hidden h-8 w-px bg-slate-200 sm:block" /><button className="flex items-center gap-2 rounded-xl p-1.5 transition hover:bg-white"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 text-sm font-bold text-teal-700">{initials || 'U'}</div><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-ink">{profileName}</span><span className="block text-[10px] text-muted">{profileRole}</span></span><ChevronDown size={15} className="hidden text-muted sm:block" /></button></div></header>
+  return <>
+    <header className="app-toolbar flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10">
+      <div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div>
+      <div className="flex items-center gap-2 sm:gap-4">
+        <div className="toolbar-search hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex"><Search size={16} /><input className="w-36 bg-transparent outline-none placeholder:text-slate-400" placeholder="Search anything..." /></div>
+        <button type="button" aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-pressed={darkMode} onClick={onToggleTheme} className="toolbar-action rounded-xl border border-slate-200 bg-white p-2.5 text-muted shadow-sm transition hover:text-teal-700">
+          {darkMode ? <Sun size={18} /> : <Moon size={18} />}
+        </button>
+        <div className="toolbar-divider hidden h-8 w-px bg-slate-200 sm:block" />
+        <div className="relative">
+          <button type="button" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((value) => !value)} className="toolbar-profile flex items-center gap-2 rounded-xl p-1.5 transition"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 text-sm font-bold text-teal-700">{initials || 'U'}</div><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-ink">{profileName}</span><span className="block text-[10px] text-muted">{profileRole}</span></span><ChevronDown size={15} className="hidden text-muted sm:block" /></button>
+          {profileMenuOpen && <div className="toolbar-dropdown absolute right-0 top-[calc(100%+10px)] z-50 w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
+            <button type="button" onClick={() => { setProfileMenuOpen(false); setChangePasswordOpen(true) }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-ink transition hover:bg-teal-50 hover:text-teal-700"><LockKeyhole size={16} className="text-muted" />Change password</button>
+          </div>}
+        </div>
+      </div>
+    </header>
+    {changePasswordOpen && <ChangePasswordModal onClose={() => setChangePasswordOpen(false)} />}
+  </>
+}
+
+function ChangePasswordModal({ onClose }: { onClose: () => void }) {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [saved, setSaved] = useState(false)
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setError('')
+    setSaved(false)
+    if (newPassword.length < 6) {
+      setError('New password must be at least 6 characters.')
+      return
+    }
+    if (newPassword !== confirmPassword) {
+      setError('New password and confirmation do not match.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await apiPost<{ message: string }>('/api/auth/change-password', { currentPassword, newPassword })
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+      setSaved(true)
+    } catch (changePasswordError) {
+      setError(changePasswordError instanceof Error ? changePasswordError.message : 'Unable to change password right now.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return <div className="fixed inset-0 z-[80] flex items-end justify-center bg-ink/30 p-0 backdrop-blur-sm sm:items-center sm:p-5">
+    <div className="w-full max-w-md rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl">
+      <div className="flex items-start justify-between"><div><h2 className="heading-font text-xl font-extrabold text-ink">Change password</h2><p className="mt-1 text-xs text-muted">Update the password for your account.</p></div><button type="button" onClick={onClose} aria-label="Close change password" className="rounded-lg p-2 text-muted hover:bg-slate-100"><X size={18} /></button></div>
+      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+        <PasswordField label="Current password" value={currentPassword} onChange={setCurrentPassword} autoComplete="current-password" />
+        <PasswordField label="New password" value={newPassword} onChange={setNewPassword} autoComplete="new-password" />
+        <PasswordField label="Confirm new password" value={confirmPassword} onChange={setConfirmPassword} autoComplete="new-password" />
+        {error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">{error}</p>}
+        {saved && <p className="rounded-xl bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-600">Password changed successfully.</p>}
+        <div className="flex justify-end gap-3 border-t border-slate-100 pt-5"><button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-xs font-bold text-muted hover:bg-slate-100">Cancel</button><button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-60">{saving ? 'Saving...' : 'Change password'}</button></div>
+      </form>
+    </div>
+  </div>
+}
+
+function PasswordField({ label, value, onChange, autoComplete }: { label: string; value: string; onChange: (value: string) => void; autoComplete: string }) {
+  return <label className="block"><span className="mb-1.5 block text-xs font-bold text-ink">{label}</span><span className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><LockKeyhole size={15} className="text-muted" /><input required type="password" autoComplete={autoComplete} value={value} onChange={(event) => onChange(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" /></span></label>
 }
 
 function LoginPage({ onLogin }: { onLogin: () => void }) {
