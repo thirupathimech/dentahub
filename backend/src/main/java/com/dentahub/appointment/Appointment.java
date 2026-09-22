@@ -29,6 +29,9 @@ public class Appointment {
     @Column(nullable = false)
     private LocalDateTime appointmentDateTime;
 
+    @Column(name = "appointment_end_date_time")
+    private LocalDateTime appointmentEndDateTime;
+
     @Column(nullable = false)
     private String appointmentType;
 
@@ -61,6 +64,8 @@ public class Appointment {
     public void setDoctorId(Long doctorId) { this.doctorId = doctorId; }
     public LocalDateTime getAppointmentDateTime() { return appointmentDateTime; }
     public void setAppointmentDateTime(LocalDateTime appointmentDateTime) { this.appointmentDateTime = appointmentDateTime; }
+    public LocalDateTime getAppointmentEndDateTime() { return appointmentEndDateTime; }
+    public void setAppointmentEndDateTime(LocalDateTime appointmentEndDateTime) { this.appointmentEndDateTime = appointmentEndDateTime; }
     public String getAppointmentType() { return appointmentType; }
     public void setAppointmentType(String appointmentType) { this.appointmentType = appointmentType; }
     public String getStatus() { return status; }

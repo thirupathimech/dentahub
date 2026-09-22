@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
     List<Appointment> findAllByOrderByAppointmentDateTimeAsc();
+    List<Appointment> findByAppointmentDateTimeGreaterThanEqualAndAppointmentDateTimeLessThanOrderByAppointmentDateTimeAsc(LocalDateTime start, LocalDateTime end);
     List<Appointment> findByAppointmentDateTimeBetweenOrderByAppointmentDateTimeAsc(LocalDateTime start, LocalDateTime end);
     long countByAppointmentDateTimeBetween(LocalDateTime start, LocalDateTime end);
 }

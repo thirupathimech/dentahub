@@ -13,9 +13,21 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const payload = await response.json().catch(() => null)
   if (!response.ok) {
-    throw new Error(payload?.message ?? `Request failed with status ${response.status}`)
+    throw new ApiRequestError(payload?.message ?? `Request failed with status ${response.status}`, response.status, payload)
   }
   return payload as T
+}
+
+export class ApiRequestError extends Error {
+  status: number
+  payload: unknown
+
+  constructor(message: string, status: number, payload: unknown) {
+    super(message)
+    this.name = 'ApiRequestError'
+    this.status = status
+    this.payload = payload
+  }
 }
 
 export const apiGet = <T,>(path: string) => request<T>(path)
@@ -68,9 +80,25 @@ export type Appointment = {
   doctorId: number
   doctorName: string
   appointmentDateTime: string
+  appointmentEndDateTime: string
   appointmentType: string
   status: string
   notes: string | null
+}
+
+export type AppointmentConflict = {
+  message: string
+  conflicts: Array<{
+    id: number
+    patientId: number
+    patientName: string
+    doctorId: number
+    doctorName: string
+    appointmentDateTime: string
+    appointmentEndDateTime: string
+    reason: string
+  }>
+  availableSlots: Array<{ startTime: string; endTime: string }>
 }
 
 export type ClinicSettings = {
