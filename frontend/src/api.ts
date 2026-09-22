@@ -86,3 +86,12 @@ export type ClinicSettings = {
   timezone: string | null
   appointmentDurationMinutes: number | null
 }
+
+export type AuthUser = {
+  id: string
+  name: string
+  email: string
+  role: string
+  clinicName: string
+  permissions: string[]
+}

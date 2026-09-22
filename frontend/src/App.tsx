@@ -7,6 +7,7 @@ import PatientsPage from './pages/PatientsPage'
 import SettingsPage from './pages/SettingsPage'
 import UsersRolesPage from './pages/UsersRolesPage'
 import { apiGet } from './api'
+import { ALL_PERMISSION_KEYS } from './permissions'
 import {
   Activity,
   AlarmClock,
@@ -43,24 +44,25 @@ type MenuItem = {
   label: string
   path: string
   icon: IconType
+  permission: string
 }
 
 const navigation: MenuItem[] = [
-  { label: 'Dashboard', path: '/', icon: LayoutDashboard },
-  { label: 'Patients', path: '/patients', icon: UsersRound },
-  { label: 'Appointments', path: '/appointments', icon: CalendarDays },
-  { label: 'Doctors', path: '/doctors', icon: Stethoscope },
-  { label: 'Consultation', path: '/consultation', icon: MessageSquareMore },
-  { label: 'Dental Chart', path: '/dental-chart', icon: Activity },
-  { label: 'Treatment Plans', path: '/treatment-plans', icon: ClipboardList },
-  { label: 'Treatments', path: '/treatments', icon: FolderKanban },
-  { label: 'Billing', path: '/billing', icon: FileText },
-  { label: 'Payments', path: '/payments', icon: CreditCard },
-  { label: 'Users / Roles', path: '/users-roles', icon: ShieldCheck },
-  { label: 'Branch', path: '/branch', icon: CircleDollarSign },
+  { label: 'Dashboard', path: '/', icon: LayoutDashboard, permission: 'dashboard' },
+  { label: 'Patients', path: '/patients', icon: UsersRound, permission: 'patients' },
+  { label: 'Appointments', path: '/appointments', icon: CalendarDays, permission: 'appointments' },
+  { label: 'Doctors', path: '/doctors', icon: Stethoscope, permission: 'doctors' },
+  { label: 'Consultation', path: '/consultation', icon: MessageSquareMore, permission: 'consultation' },
+  { label: 'Dental Chart', path: '/dental-chart', icon: Activity, permission: 'dental-chart' },
+  { label: 'Treatment Plans', path: '/treatment-plans', icon: ClipboardList, permission: 'treatment-plans' },
+  { label: 'Treatments', path: '/treatments', icon: FolderKanban, permission: 'treatments' },
+  { label: 'Billing', path: '/billing', icon: FileText, permission: 'billing' },
+  { label: 'Payments', path: '/payments', icon: CreditCard, permission: 'payments' },
+  { label: 'Users / Roles', path: '/users-roles', icon: ShieldCheck, permission: 'users-roles' },
+  { label: 'Branch', path: '/branch', icon: CircleDollarSign, permission: 'branch' },
 ]
 
-const utilityNavigation: MenuItem[] = [{ label: 'Settings', path: '/settings', icon: Settings }]
+const utilityNavigation: MenuItem[] = [{ label: 'Settings', path: '/settings', icon: Settings, permission: 'settings' }]
 
 type Summary = {
   date: string
@@ -86,15 +88,28 @@ const initialSummary: Summary = {
   appointments: [],
 }
 
+function readStoredPermissions() {
+  try {
+    const stored = JSON.parse(localStorage.getItem('dentahub_permissions') ?? 'null')
+    if (Array.isArray(stored)) return stored as string[]
+    const user = JSON.parse(localStorage.getItem('dentahub_user') ?? 'null')
+    if (user?.role === 'Administrator') return ALL_PERMISSION_KEYS
+  } catch {
+    return []
+  }
+  return []
+}
+
 function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('dentahub_token')))
+  const [permissions, setPermissions] = useState<string[]>(readStoredPermissions)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
 
   if (!authenticated) {
     return (
       <Routes>
-        <Route path="/login" element={<LoginPage onLogin={() => setAuthenticated(true)} />} />
+        <Route path="/login" element={<LoginPage onLogin={() => { setPermissions(readStoredPermissions()); setAuthenticated(true) }} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -103,28 +118,33 @@ function App() {
   const logout = () => {
     localStorage.removeItem('dentahub_token')
     localStorage.removeItem('dentahub_user')
+    localStorage.removeItem('dentahub_permissions')
+    setPermissions([])
     setAuthenticated(false)
   }
 
+  const can = (permission: string) => permissions.includes(permission)
+  const firstAllowedPath = [...navigation, ...utilityNavigation].find((item) => can(item.permission))?.path ?? '/'
+
   return (
     <div className="min-h-screen bg-cream text-ink">
-      <Sidebar open={sidebarOpen} collapsed={collapsed} onClose={() => setSidebarOpen(false)} onLogout={logout} />
+      <Sidebar open={sidebarOpen} collapsed={collapsed} permissions={permissions} onClose={() => setSidebarOpen(false)} onLogout={logout} />
       <main className={`min-h-screen transition-all duration-300 ${collapsed ? 'lg:pl-[88px]' : 'lg:pl-[260px]'}`}>
         <Header onMenu={() => setSidebarOpen(true)} />
         <div className="mx-auto max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-10">
           <Routes>
-            <Route path="/" element={<Dashboard />} />
+            <Route path="/" element={can('dashboard') ? <Dashboard permissions={permissions} /> : firstAllowedPath !== '/' ? <Navigate to={firstAllowedPath} replace /> : <AccessDenied />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
-            <Route path="/patients" element={<PatientsPage />} />
-            <Route path="/appointments" element={<AppointmentsPage />} />
-            <Route path="/doctors" element={<DoctorsPage />} />
-            <Route path="/branch" element={<BranchPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
-            <Route path="/users-roles" element={<UsersRolesPage />} />
-            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/branch', '/users-roles'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon }) => (
-              <Route key={path} path={path} element={<ComingSoonPage label={label} icon={Icon} />} />
+            <Route path="/patients" element={can('patients') ? <PatientsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/appointments" element={can('appointments') ? <AppointmentsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/doctors" element={can('doctors') ? <DoctorsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/branch" element={can('branch') ? <BranchPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/settings" element={can('settings') ? <SettingsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/users-roles" element={can('users-roles') ? <UsersRolesPage /> : <Navigate to={firstAllowedPath} replace />} />
+            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/branch', '/users-roles'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
+              <Route key={path} path={path} element={can(permission) ? <ComingSoonPage label={label} icon={Icon} /> : <Navigate to={firstAllowedPath} replace />} />
             ))}
-            <Route path="*" element={<Navigate to="/" replace />} />
+            <Route path="*" element={<Navigate to={firstAllowedPath} replace />} />
           </Routes>
         </div>
       </main>
@@ -139,7 +159,7 @@ function App() {
   )
 }
 
-function Sidebar({ open, collapsed, onClose, onLogout }: { open: boolean; collapsed: boolean; onClose: () => void; onLogout: () => void }) {
+function Sidebar({ open, collapsed, permissions, onClose, onLogout }: { open: boolean; collapsed: boolean; permissions: string[]; onClose: () => void; onLogout: () => void }) {
   return (
     <>
       {open && <button aria-label="Close navigation" onClick={onClose} className="fixed inset-0 z-40 bg-ink/30 lg:hidden" />}
@@ -157,11 +177,11 @@ function Sidebar({ open, collapsed, onClose, onLogout }: { open: boolean; collap
         <div className="scrollbar-hidden flex-1 overflow-y-auto px-3 py-6">
           <p className={`mb-3 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ${collapsed ? 'lg:hidden' : ''}`}>Workspace</p>
           <nav className="space-y-1">
-            {navigation.map((item) => <SidebarLink key={item.path} item={item} collapsed={collapsed} onClose={onClose} />)}
+            {navigation.filter((item) => permissions.includes(item.permission)).map((item) => <SidebarLink key={item.path} item={item} collapsed={collapsed} onClose={onClose} />)}
           </nav>
           <p className={`mb-3 mt-8 px-3 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-400 ${collapsed ? 'lg:hidden' : ''}`}>System</p>
           <nav className="space-y-1">
-            {utilityNavigation.map((item) => <SidebarLink key={item.path} item={item} collapsed={collapsed} onClose={onClose} />)}
+            {utilityNavigation.filter((item) => permissions.includes(item.permission)).map((item) => <SidebarLink key={item.path} item={item} collapsed={collapsed} onClose={onClose} />)}
           </nav>
           <button onClick={onLogout} className={`group mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold text-slate-500 transition hover:bg-rose-50 hover:text-rose-600 ${collapsed ? 'lg:justify-center' : ''}`} title={collapsed ? 'Sign out' : undefined}>
             <LogOut size={18} strokeWidth={2} />
@@ -222,6 +242,7 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
 
       localStorage.setItem('dentahub_token', payload.token)
       localStorage.setItem('dentahub_user', JSON.stringify(payload.user))
+      localStorage.setItem('dentahub_permissions', JSON.stringify(payload.user.permissions ?? []))
       onLogin()
     } catch (loginError) {
       setError(loginError instanceof Error ? loginError.message : 'Unable to sign in right now.')
@@ -259,7 +280,7 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
   )
 }
 
-function Dashboard() {
+function Dashboard({ permissions }: { permissions: string[] }) {
   const [summary, setSummary] = useState<Summary>(initialSummary)
   const [loading, setLoading] = useState(true)
 
@@ -273,7 +294,7 @@ function Dashboard() {
       .finally(() => setLoading(false))
   }, [])
 
-  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">{formattedDate}</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">{greeting} <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">Here is what is happening at your clinic today. You have <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled.</p></div><div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} caption="Live clinic total" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} caption="Scheduled for today" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Total Doctors" value={summary.totalDoctors} caption="Registered clinicians" icon={Stethoscope} tone="violet" loading={loading} /><StatCard label="Total Branches" value={summary.totalBranches} caption="Configured locations" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions /></section></div>
+  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">{formattedDate}</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">{greeting} <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">Here is what is happening at your clinic today. You have <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled.</p></div><div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} caption="Live clinic total" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} caption="Scheduled for today" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Total Doctors" value={summary.totalDoctors} caption="Registered clinicians" icon={Stethoscope} tone="violet" loading={loading} /><StatCard label="Total Branches" value={summary.totalBranches} caption="Configured locations" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions permissions={permissions} /></section></div>
 }
 
 function getGreeting() {
@@ -298,9 +319,13 @@ function StatusBadge({ status }: { status: string }) {
   return <span className={`hidden rounded-md px-2 py-1 text-[10px] font-bold sm:block ${value[1]}`}>{value[0]}</span>
 }
 
-function QuickActions() {
-  const actions = [{ label: 'Add new patient', description: 'Create a patient profile', icon: UserRound, color: 'bg-teal-50 text-teal-600' }, { label: 'Schedule appointment', description: 'Book a new appointment', icon: CalendarDays, color: 'bg-blue-50 text-blue-500' }, { label: 'Start consultation', description: 'Open clinical workspace', icon: MessageSquareMore, color: 'bg-violet-50 text-violet-500' }]
+function QuickActions({ permissions }: { permissions: string[] }) {
+  const actions = [{ permission: 'patients', label: 'Add new patient', description: 'Create a patient profile', icon: UserRound, color: 'bg-teal-50 text-teal-600' }, { permission: 'appointments', label: 'Schedule appointment', description: 'Book a new appointment', icon: CalendarDays, color: 'bg-blue-50 text-blue-500' }, { permission: 'consultation', label: 'Start consultation', description: 'Open clinical workspace', icon: MessageSquareMore, color: 'bg-violet-50 text-violet-500' }].filter((action) => permissions.includes(action.permission))
   return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft sm:p-6"><div><h3 className="heading-font text-base font-extrabold text-ink">Quick actions</h3><p className="mt-1 text-xs text-muted">Common tasks, right at your fingertips</p></div><div className="mt-5 space-y-3">{actions.map(({ label, description, icon: Icon, color }) => <button key={label} className="group flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:border-teal-100 hover:bg-teal-50/40"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color}`}><Icon size={19} /></span><span className="flex-1"><span className="block text-xs font-bold text-ink">{label}</span><span className="mt-1 block text-[11px] text-muted">{description}</span></span><span className="text-lg text-slate-300 transition group-hover:translate-x-1 group-hover:text-teal-600">→</span></button>)}</div></div>
+}
+
+function AccessDenied() {
+  return <div className="flex min-h-[calc(100vh-88px)] items-center justify-center py-10"><div className="max-w-md rounded-3xl border border-slate-100 bg-white p-8 text-center shadow-soft"><span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-rose-50 text-rose-600"><ShieldCheck size={29} /></span><h2 className="heading-font mt-5 text-xl font-extrabold text-ink">No menu access assigned</h2><p className="mt-2 text-sm leading-6 text-muted">Ask an administrator to assign at least one menu permission to your role.</p></div></div>
 }
 
 function ComingSoonPage({ label, icon: Icon }: { label: string; icon: IconType }) {

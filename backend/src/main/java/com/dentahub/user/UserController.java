@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.dentahub.role.RoleRepository;
+import com.dentahub.role.MenuPermissions;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -90,8 +91,9 @@ public class UserController {
     }
 
     private UserResponse toResponse(UserAccount user) {
-        String roleName = user.getRoleId() == null ? null : roleRepository.findById(user.getRoleId()).map(role -> role.getName()).orElse(null);
-        return new UserResponse(user.getId(), user.getFullName(), user.getEmail(), user.getRoleId(), roleName, user.getStatus());
+        var role = user.getRoleId() == null ? null : roleRepository.findById(user.getRoleId()).orElse(null);
+        return new UserResponse(user.getId(), user.getFullName(), user.getEmail(), user.getRoleId(), role == null ? null : role.getName(),
+                role == null ? List.of() : MenuPermissions.asList(role.getPermissions()), user.getStatus());
     }
 
     private static String normalizeStatus(String status) {
@@ -100,6 +102,6 @@ public class UserController {
 
     public record CreateUserRequest(@NotBlank String fullName, @NotBlank @Email String email, @NotBlank String password, Long roleId, String status) { }
     public record UpdateUserRequest(@NotBlank String fullName, @NotBlank @Email String email, String password, Long roleId, String status) { }
-    public record UserResponse(Long id, String fullName, String email, Long roleId, String roleName, String status) { }
+    public record UserResponse(Long id, String fullName, String email, Long roleId, String roleName, List<String> permissions, String status) { }
     public record ErrorResponse(String message) { }
 }

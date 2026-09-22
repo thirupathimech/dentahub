@@ -69,7 +69,7 @@ public class RoleController {
     private static void apply(Role role, RoleRequest request) {
         role.setName(request.name().trim());
         role.setDescription(blankToNull(request.description()));
-        role.setPermissions(blankToNull(request.permissions()));
+        role.setPermissions(blankToNull(MenuPermissions.normalize(request.permissions())));
         role.setActive(request.active() == null || request.active());
     }
 

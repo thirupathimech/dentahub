@@ -17,6 +17,9 @@ import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import com.dentahub.role.MenuPermissions;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -55,10 +58,15 @@ public class AuthController {
             if (!"ACTIVE".equalsIgnoreCase(databaseUser.getStatus()) || !passwordEncoder.matches(request.password(), databaseUser.getPasswordHash())) {
                 return unauthorized();
             }
-            String roleName = databaseUser.getRoleId() == null ? "User" : roleRepository.findById(databaseUser.getRoleId()).map(role -> role.getName()).orElse("User");
+            var role = databaseUser.getRoleId() == null ? null : roleRepository.findById(databaseUser.getRoleId()).orElse(null);
+            if (role != null && !role.isActive()) {
+                return unauthorized();
+            }
+            String roleName = role == null ? "User" : role.getName();
             return ResponseEntity.ok(new LoginResponse(
                     "dentahub-user-session-" + databaseUser.getId(),
-                    new UserProfile(String.valueOf(databaseUser.getId()), databaseUser.getFullName(), databaseUser.getEmail(), roleName, clinicName)));
+                    new UserProfile(String.valueOf(databaseUser.getId()), databaseUser.getFullName(), databaseUser.getEmail(), roleName, clinicName,
+                            role == null ? List.of() : MenuPermissions.asList(role.getPermissions()))));
         }
         if (!adminEmail.equalsIgnoreCase(request.email()) || !adminPassword.equals(request.password())) {
             return unauthorized();
@@ -66,7 +74,7 @@ public class AuthController {
 
         return ResponseEntity.ok(new LoginResponse(
                 "dentahub-demo-session",
-                new UserProfile("admin", adminName.isBlank() ? adminEmail : adminName, adminEmail, "Administrator", clinicName)));
+                new UserProfile("admin", adminName.isBlank() ? adminEmail : adminName, adminEmail, "Administrator", clinicName, MenuPermissions.ALL)));
     }
 
     private ResponseEntity<ErrorResponse> unauthorized() {
@@ -81,7 +89,7 @@ public class AuthController {
     public record LoginResponse(String token, UserProfile user) {
     }
 
-    public record UserProfile(String id, String name, String email, String role, String clinicName) {
+    public record UserProfile(String id, String name, String email, String role, String clinicName, List<String> permissions) {
     }
 
     public record ErrorResponse(String message) {
