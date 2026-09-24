@@ -169,6 +169,48 @@ export type TreatmentPlan = {
   estimatedTotal: number
 }
 
+export type BillingInvoiceItem = {
+  id: number | null
+  description: string
+  quantity: number
+  unitPrice: number
+}
+
+export type BillingInvoice = {
+  id: number
+  invoiceNumber: string
+  patientId: number
+  patientName: string
+  branchId: number | null
+  treatmentPlanId: number | null
+  issueDate: string
+  dueDate: string | null
+  status: string
+  discount: number
+  tax: number
+  notes: string | null
+  items: BillingInvoiceItem[]
+  subtotal: number
+  total: number
+  paidAmount: number
+  balance: number
+}
+
+export type Payment = {
+  id: number
+  receiptNumber: string
+  invoiceId: number
+  invoiceNumber: string
+  patientId: number
+  patientName: string
+  branchId: number | null
+  paymentDate: string
+  amount: number
+  method: string
+  reference: string | null
+  notes: string | null
+}
+
 export type AuthUser = {
   id: string
   name: string

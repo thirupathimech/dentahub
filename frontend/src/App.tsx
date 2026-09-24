@@ -1,10 +1,12 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AppointmentsPage from './pages/AppointmentsPage'
+import BillingPage from './pages/BillingPage'
 import ConsultationPage from './pages/ConsultationPage'
 import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
+import PaymentsPage from './pages/PaymentsPage'
 import SettingsPage from './pages/SettingsPage'
 import TreatmentPlansPage from './pages/TreatmentPlansPage'
 import TreatmentsPage from './pages/TreatmentsPage'
@@ -154,7 +156,9 @@ function App() {
             <Route path="/users-roles" element={can('users-roles') ? <UsersRolesPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/treatment-plans" element={can('treatment-plans') ? <TreatmentPlansPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/treatments" element={can('treatments') ? <TreatmentsPage /> : <Navigate to={firstAllowedPath} replace />} />
-            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/consultation', '/branch', '/users-roles', '/treatment-plans', '/treatments'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
+            <Route path="/billing" element={can('billing') ? <BillingPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/payments" element={can('payments') ? <PaymentsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/consultation', '/branch', '/users-roles', '/treatment-plans', '/treatments', '/billing', '/payments'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
               <Route key={path} path={path} element={can(permission) ? <ComingSoonPage label={label} icon={Icon} /> : <Navigate to={firstAllowedPath} replace />} />
             ))}
             <Route path="*" element={<Navigate to={firstAllowedPath} replace />} />
