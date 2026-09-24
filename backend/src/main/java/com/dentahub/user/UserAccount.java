@@ -30,6 +30,8 @@ public class UserAccount {
 
     private Long roleId;
 
+    private Long branchId;
+
     @Column(nullable = false)
     private String status = "ACTIVE";
 
@@ -58,6 +60,8 @@ public class UserAccount {
     public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public Long getRoleId() { return roleId; }
     public void setRoleId(Long roleId) { this.roleId = roleId; }
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Instant getCreatedAt() { return createdAt; }

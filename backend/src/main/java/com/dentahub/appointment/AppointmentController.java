@@ -20,9 +20,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import com.dentahub.doctor.DoctorRepository;
 import com.dentahub.patient.PatientRepository;
+import com.dentahub.auth.BranchAccessService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -40,25 +42,27 @@ public class AppointmentController {
     private final AppointmentRepository repository;
     private final PatientRepository patientRepository;
     private final DoctorRepository doctorRepository;
+    private final BranchAccessService accessService;
 
-    public AppointmentController(AppointmentRepository repository, PatientRepository patientRepository, DoctorRepository doctorRepository) {
+    public AppointmentController(AppointmentRepository repository, PatientRepository patientRepository, DoctorRepository doctorRepository, BranchAccessService accessService) {
         this.repository = repository;
         this.patientRepository = patientRepository;
         this.doctorRepository = doctorRepository;
+        this.accessService = accessService;
     }
 
     @GetMapping
-    public List<AppointmentResponse> list(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+    public List<AppointmentResponse> list(@RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date, @RequestHeader(value = "Authorization", required = false) String authorization) {
         List<Appointment> appointments = date == null
                 ? repository.findAllByOrderByAppointmentDateTimeAsc()
                 : repository.findByAppointmentDateTimeGreaterThanEqualAndAppointmentDateTimeLessThanOrderByAppointmentDateTimeAsc(
                         date.atStartOfDay(), date.plusDays(1).atStartOfDay());
-        return appointments.stream().map(this::toResponse).toList();
+        return appointments.stream().filter(appointment -> doctorRepository.findById(appointment.getDoctorId()).map(doctor -> accessService.canAccess(authorization, doctor.getBranchId())).orElse(false)).map(this::toResponse).toList();
     }
 
     @PostMapping
-    public ResponseEntity<?> create(@Valid @RequestBody AppointmentRequest request) {
-        ResponseEntity<?> validation = validateReferences(request);
+    public ResponseEntity<?> create(@RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody AppointmentRequest request) {
+        ResponseEntity<?> validation = validateReferences(request, authorization);
         if (validation != null) return validation;
         validation = validateTimeRange(request);
         if (validation != null) return validation;
@@ -70,14 +74,15 @@ public class AppointmentController {
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id, @Valid @RequestBody AppointmentRequest request) {
-        ResponseEntity<?> validation = validateReferences(request);
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody AppointmentRequest request) {
+        ResponseEntity<?> validation = validateReferences(request, authorization);
         if (validation != null) return validation;
         validation = validateTimeRange(request);
         if (validation != null) return validation;
         validation = validateConflicts(request, id);
         if (validation != null) return validation;
         return repository.findById(id)
+                .filter(appointment -> doctorRepository.findById(appointment.getDoctorId()).map(doctor -> accessService.canAccess(authorization, doctor.getBranchId())).orElse(false))
                 .map(appointment -> {
                     apply(appointment, request);
                     return ResponseEntity.ok(toResponse(repository.save(appointment)));
@@ -86,21 +91,28 @@ public class AppointmentController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<?> delete(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization) {
         if (!repository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
+        var appointment = repository.findById(id).orElse(null);
+        var doctor = appointment == null ? null : doctorRepository.findById(appointment.getDoctorId()).orElse(null);
+        if (doctor == null || !accessService.canAccess(authorization, doctor.getBranchId())) return ResponseEntity.status(403).body(new ErrorResponse("You can only manage appointments in your assigned branch"));
         repository.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 
-    private ResponseEntity<?> validateReferences(AppointmentRequest request) {
-        if (!patientRepository.existsById(request.patientId())) {
+    private ResponseEntity<?> validateReferences(AppointmentRequest request, String authorization) {
+        var patient = patientRepository.findById(request.patientId()).orElse(null);
+        if (patient == null) {
             return ResponseEntity.badRequest().body(new ErrorResponse("Selected patient was not found"));
         }
-        if (!doctorRepository.existsById(request.doctorId())) {
+        if (!accessService.canAccess(authorization, patient.getBranchId())) return ResponseEntity.status(403).body(new ErrorResponse("You can only work with patients in your assigned branch"));
+        var doctor = doctorRepository.findById(request.doctorId()).orElse(null);
+        if (doctor == null) {
             return ResponseEntity.badRequest().body(new ErrorResponse("Selected doctor was not found"));
         }
+        if (!accessService.canAccess(authorization, doctor.getBranchId())) return ResponseEntity.status(403).body(new ErrorResponse("You can only work with appointments in your assigned branch"));
         return null;
     }
 

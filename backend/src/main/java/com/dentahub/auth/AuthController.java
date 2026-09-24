@@ -71,7 +71,7 @@ public class AuthController {
             return ResponseEntity.ok(new LoginResponse(
                     "dentahub-user-session-" + databaseUser.getId(),
                     new UserProfile(String.valueOf(databaseUser.getId()), databaseUser.getFullName(), databaseUser.getEmail(), roleName, clinicName,
-                            role == null ? List.of() : MenuPermissions.asList(role.getPermissions()))));
+                            role == null ? List.of() : MenuPermissions.asList(role.getPermissions()), databaseUser.getBranchId(), role != null && role.isBranchScoped())));
         }
         if (!adminEmail.equalsIgnoreCase(request.email()) || !matchesAdminPassword(request.password())) {
             return unauthorized();
@@ -79,7 +79,7 @@ public class AuthController {
 
         return ResponseEntity.ok(new LoginResponse(
                 "dentahub-demo-session",
-                new UserProfile("admin", adminName.isBlank() ? adminEmail : adminName, adminEmail, "Administrator", clinicName, MenuPermissions.ALL)));
+                new UserProfile("admin", adminName.isBlank() ? adminEmail : adminName, adminEmail, "Administrator", clinicName, MenuPermissions.ALL, null, false)));
     }
 
     @PostMapping("/change-password")
@@ -154,7 +154,7 @@ public class AuthController {
     public record SuccessResponse(String message) {
     }
 
-    public record UserProfile(String id, String name, String email, String role, String clinicName, List<String> permissions) {
+    public record UserProfile(String id, String name, String email, String role, String clinicName, List<String> permissions, Long branchId, boolean branchScoped) {
     }
 
     public record ErrorResponse(String message) {

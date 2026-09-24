@@ -12,6 +12,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
+
+import com.dentahub.auth.BranchAccessService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -23,25 +26,29 @@ import jakarta.validation.constraints.NotBlank;
 public class BranchController {
 
     private final BranchRepository repository;
+    private final BranchAccessService accessService;
 
-    public BranchController(BranchRepository repository) {
+    public BranchController(BranchRepository repository, BranchAccessService accessService) {
         this.repository = repository;
+        this.accessService = accessService;
     }
 
     @GetMapping
-    public List<BranchResponse> list() {
-        return repository.findAllByOrderByNameAsc().stream().map(BranchController::toResponse).toList();
+    public List<BranchResponse> list(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        return repository.findAllByOrderByNameAsc().stream().filter(branch -> accessService.canAccess(authorization, branch.getId())).map(BranchController::toResponse).toList();
     }
 
     @PostMapping
-    public BranchResponse create(@Valid @RequestBody BranchRequest request) {
+    public ResponseEntity<?> create(@RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody BranchRequest request) {
+        if (accessService.scopedBranch(authorization).isPresent()) return ResponseEntity.status(403).body(new ErrorResponse("Branch-scoped users cannot create another branch"));
         Branch branch = new Branch();
         apply(branch, request);
-        return toResponse(repository.save(branch));
+        return ResponseEntity.ok(toResponse(repository.save(branch)));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<BranchResponse> update(@PathVariable Long id, @Valid @RequestBody BranchRequest request) {
+    public ResponseEntity<?> update(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody BranchRequest request) {
+        if (!accessService.canAccess(authorization, id)) return ResponseEntity.status(403).body(new ErrorResponse("You can only manage your assigned branch"));
         return repository.findById(id)
                 .map(branch -> {
                     apply(branch, request);
@@ -51,7 +58,8 @@ public class BranchController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
+    public ResponseEntity<?> delete(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (!accessService.canAccess(authorization, id)) return ResponseEntity.status(403).body(new ErrorResponse("You can only manage your assigned branch"));
         if (!repository.existsById(id)) {
             return ResponseEntity.notFound().build();
         }
@@ -104,4 +112,6 @@ public class BranchController {
             String postalCode,
             boolean active) {
     }
+
+    public record ErrorResponse(String message) { }
 }

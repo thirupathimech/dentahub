@@ -27,6 +27,7 @@ public class Patient {
     private String phone;
 
     private String email;
+    private Long branchId;
     private LocalDate dateOfBirth;
     private String gender;
     private String address;
@@ -61,6 +62,8 @@ public class Patient {
     public void setPhone(String phone) { this.phone = phone; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }
     public void setDateOfBirth(LocalDate dateOfBirth) { this.dateOfBirth = dateOfBirth; }
     public String getGender() { return gender; }

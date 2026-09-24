@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AppointmentsPage from './pages/AppointmentsPage'
+import ConsultationPage from './pages/ConsultationPage'
 import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
@@ -145,10 +146,11 @@ function App() {
             <Route path="/patients" element={can('patients') ? <PatientsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/appointments" element={can('appointments') ? <AppointmentsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/doctors" element={can('doctors') ? <DoctorsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/consultation" element={can('consultation') ? <ConsultationPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/branch" element={can('branch') ? <BranchPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/settings" element={can('settings') ? <SettingsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/users-roles" element={can('users-roles') ? <UsersRolesPage /> : <Navigate to={firstAllowedPath} replace />} />
-            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/branch', '/users-roles'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
+            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/consultation', '/branch', '/users-roles'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
               <Route key={path} path={path} element={can(permission) ? <ComingSoonPage label={label} icon={Icon} /> : <Navigate to={firstAllowedPath} replace />} />
             ))}
             <Route path="*" element={<Navigate to={firstAllowedPath} replace />} />
@@ -219,6 +221,7 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme }: { permissions:
   const [searchOpen, setSearchOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const [logoDataUrl, setLogoDataUrl] = useState('')
   const [profile] = useState<{ name?: string; role?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') } catch { return null }
   })
@@ -234,10 +237,28 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme }: { permissions:
     setSearchQuery('')
     setSearchOpen(false)
   }
+  useEffect(() => {
+    const updateLogo = (event?: Event) => {
+      const detail = (event as CustomEvent<{ logoDataUrl?: string }> | undefined)?.detail
+      const applyLogo = (value: string) => {
+        setLogoDataUrl(value)
+        const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+        if (favicon) favicon.href = value || '/favicon.svg'
+      }
+      if (detail?.logoDataUrl !== undefined) applyLogo(detail.logoDataUrl ?? '')
+      else apiGet<{ logoDataUrl?: string }>('/api/settings').then((settings) => applyLogo(settings.logoDataUrl ?? '')).catch(() => undefined)
+    }
+    updateLogo()
+    window.addEventListener('dentahub:settings-updated', updateLogo)
+    return () => window.removeEventListener('dentahub:settings-updated', updateLogo)
+  }, [])
   return <>
     <header className="app-toolbar flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10">
       <div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div>
       <div className="flex items-center gap-2 sm:gap-4">
+        <div className="hidden h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:flex" title="Clinic logo">
+          {logoDataUrl ? <img src={logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={18} className="text-teal-600" />}
+        </div>
         <div className="toolbar-search relative hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex">
           <Search size={16} />
           <input

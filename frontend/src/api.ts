@@ -40,6 +40,7 @@ export type Patient = {
   fullName: string
   phone: string
   email: string | null
+  branchId: number | null
   dateOfBirth: string | null
   gender: string | null
   address: string | null
@@ -113,6 +114,23 @@ export type ClinicSettings = {
   currency: string | null
   timezone: string | null
   appointmentDurationMinutes: number | null
+  logoDataUrl: string | null
+}
+
+export type Consultation = {
+  id: number
+  patientId: number
+  patientName: string
+  doctorId: number
+  doctorName: string
+  branchId: number | null
+  consultationDateTime: string
+  chiefComplaint: string | null
+  diagnosis: string | null
+  clinicalFindings: string | null
+  treatmentPlan: string | null
+  notes: string | null
+  status: string
 }
 
 export type AuthUser = {
@@ -122,4 +140,6 @@ export type AuthUser = {
   role: string
   clinicName: string
   permissions: string[]
+  branchId?: number | null
+  branchScoped?: boolean
 }

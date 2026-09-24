@@ -14,11 +14,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
+
+import com.dentahub.auth.BranchAccessService;
 
 @RestController
 @RequestMapping("/api/patients")
@@ -26,39 +29,44 @@ import jakarta.validation.constraints.Past;
 public class PatientController {
 
     private final PatientRepository repository;
+    private final BranchAccessService accessService;
 
-    public PatientController(PatientRepository repository) {
+    public PatientController(PatientRepository repository, BranchAccessService accessService) {
         this.repository = repository;
+        this.accessService = accessService;
     }
 
     @GetMapping
-    public List<PatientResponse> list(@RequestParam(defaultValue = "") String q) {
+    public List<PatientResponse> list(@RequestParam(defaultValue = "") String q, @RequestHeader(value = "Authorization", required = false) String authorization) {
         List<Patient> patients = q.isBlank()
                 ? repository.findAllByOrderByCreatedAtDesc()
                 : repository.findByFullNameContainingIgnoreCaseOrPhoneContainingIgnoreCaseOrEmailContainingIgnoreCaseOrderByCreatedAtDesc(q, q, q);
-        return patients.stream().map(PatientController::toResponse).toList();
+        return patients.stream().filter(patient -> accessService.canAccess(authorization, patient.getBranchId())).map(PatientController::toResponse).toList();
     }
 
     @PostMapping
-    public PatientResponse create(@Valid @RequestBody PatientRequest request) {
+    public PatientResponse create(@RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody PatientRequest request) {
         Patient patient = new Patient();
         apply(patient, request);
+        patient.setBranchId(accessService.scopedBranch(authorization).orElse(request.branchId()));
         return toResponse(repository.save(patient));
     }
 
     @PutMapping("/{id}")
-    public ResponseEntity<PatientResponse> update(@PathVariable Long id, @Valid @RequestBody PatientRequest request) {
+    public ResponseEntity<PatientResponse> update(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody PatientRequest request) {
         return repository.findById(id)
+                .filter(patient -> accessService.canAccess(authorization, patient.getBranchId()))
                 .map(patient -> {
                     apply(patient, request);
+                    patient.setBranchId(accessService.scopedBranch(authorization).orElse(request.branchId() == null ? patient.getBranchId() : request.branchId()));
                     return ResponseEntity.ok(toResponse(repository.save(patient)));
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable Long id) {
-        if (!repository.existsById(id)) {
+    public ResponseEntity<Void> delete(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (!repository.findById(id).map(patient -> accessService.canAccess(authorization, patient.getBranchId())).orElse(false)) {
             return ResponseEntity.notFound().build();
         }
         repository.deleteById(id);
@@ -84,13 +92,14 @@ public class PatientController {
     private static PatientResponse toResponse(Patient patient) {
         return new PatientResponse(patient.getId(), patient.getFullName(), patient.getPhone(), patient.getEmail(),
                 patient.getDateOfBirth(), patient.getGender(), patient.getAddress(), patient.getEmergencyContact(),
-                patient.getMedicalNotes(), patient.getStatus());
+                patient.getMedicalNotes(), patient.getBranchId(), patient.getStatus());
     }
 
     public record PatientRequest(
             @NotBlank String fullName,
             @NotBlank String phone,
             @Email String email,
+            Long branchId,
             @Past LocalDate dateOfBirth,
             String gender,
             String address,
@@ -109,6 +118,7 @@ public class PatientController {
             String address,
             String emergencyContact,
             String medicalNotes,
+            Long branchId,
             String status) {
     }
 }

@@ -32,6 +32,9 @@ public class ClinicSettings {
     private String timezone;
     private Integer appointmentDurationMinutes;
 
+    @Column(columnDefinition = "MEDIUMTEXT")
+    private String logoDataUrl;
+
     @Column(nullable = false)
     private Instant updatedAt;
 
@@ -62,5 +65,7 @@ public class ClinicSettings {
     public void setTimezone(String timezone) { this.timezone = timezone; }
     public Integer getAppointmentDurationMinutes() { return appointmentDurationMinutes; }
     public void setAppointmentDurationMinutes(Integer appointmentDurationMinutes) { this.appointmentDurationMinutes = appointmentDurationMinutes; }
+    public String getLogoDataUrl() { return logoDataUrl; }
+    public void setLogoDataUrl(String logoDataUrl) { this.logoDataUrl = logoDataUrl; }
     public Instant getUpdatedAt() { return updatedAt; }
 }

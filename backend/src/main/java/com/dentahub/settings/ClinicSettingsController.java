@@ -42,6 +42,7 @@ public class ClinicSettingsController {
         settings.setCurrency(blankToNull(request.currency()));
         settings.setTimezone(blankToNull(request.timezone()));
         settings.setAppointmentDurationMinutes(request.appointmentDurationMinutes());
+        settings.setLogoDataUrl(blankToNull(request.logoDataUrl()));
         return ResponseEntity.ok(toResponse(repository.save(settings)));
     }
 
@@ -51,7 +52,7 @@ public class ClinicSettingsController {
 
     private static SettingsResponse toResponse(ClinicSettings settings) {
         return new SettingsResponse(settings.getId(), settings.getClinicName(), settings.getPhone(), settings.getEmail(), settings.getAddress(),
-                settings.getCity(), settings.getState(), settings.getPostalCode(), settings.getCurrency(), settings.getTimezone(), settings.getAppointmentDurationMinutes());
+                settings.getCity(), settings.getState(), settings.getPostalCode(), settings.getCurrency(), settings.getTimezone(), settings.getAppointmentDurationMinutes(), settings.getLogoDataUrl());
     }
 
     public record SettingsRequest(
@@ -64,7 +65,8 @@ public class ClinicSettingsController {
             String postalCode,
             String currency,
             String timezone,
-            @Positive Integer appointmentDurationMinutes) {
+            @Positive Integer appointmentDurationMinutes,
+            String logoDataUrl) {
     }
 
     public record SettingsResponse(
@@ -78,9 +80,10 @@ public class ClinicSettingsController {
             String postalCode,
             String currency,
             String timezone,
-            Integer appointmentDurationMinutes) {
+            Integer appointmentDurationMinutes,
+            String logoDataUrl) {
         static SettingsResponse empty() {
-            return new SettingsResponse(null, "", null, null, null, null, null, null, null, null, null);
+            return new SettingsResponse(null, "", null, null, null, null, null, null, null, null, null, null);
         }
     }
 }

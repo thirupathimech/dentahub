@@ -31,6 +31,11 @@ public class Role {
     @Column(nullable = false)
     private boolean active = true;
 
+    @Column(nullable = false)
+    private boolean branchScoped = false;
+
+    private Long branchId;
+
     @Column(nullable = false, updatable = false)
     private Instant createdAt;
 
@@ -56,6 +61,10 @@ public class Role {
     public void setPermissions(String permissions) { this.permissions = permissions; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
+    public boolean isBranchScoped() { return branchScoped; }
+    public void setBranchScoped(boolean branchScoped) { this.branchScoped = branchScoped; }
+    public Long getBranchId() { return branchId; }
+    public void setBranchId(Long branchId) { this.branchId = branchId; }
     public Instant getCreatedAt() { return createdAt; }
     public Instant getUpdatedAt() { return updatedAt; }
 }
