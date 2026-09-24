@@ -6,6 +6,8 @@ import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
 import SettingsPage from './pages/SettingsPage'
+import TreatmentPlansPage from './pages/TreatmentPlansPage'
+import TreatmentsPage from './pages/TreatmentsPage'
 import UsersRolesPage from './pages/UsersRolesPage'
 import { apiGet, apiPost } from './api'
 import { ALL_PERMISSION_KEYS } from './permissions'
@@ -150,7 +152,9 @@ function App() {
             <Route path="/branch" element={can('branch') ? <BranchPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/settings" element={can('settings') ? <SettingsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/users-roles" element={can('users-roles') ? <UsersRolesPage /> : <Navigate to={firstAllowedPath} replace />} />
-            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/consultation', '/branch', '/users-roles'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
+            <Route path="/treatment-plans" element={can('treatment-plans') ? <TreatmentPlansPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/treatments" element={can('treatments') ? <TreatmentsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/consultation', '/branch', '/users-roles', '/treatment-plans', '/treatments'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
               <Route key={path} path={path} element={can(permission) ? <ComingSoonPage label={label} icon={Icon} /> : <Navigate to={firstAllowedPath} replace />} />
             ))}
             <Route path="*" element={<Navigate to={firstAllowedPath} replace />} />

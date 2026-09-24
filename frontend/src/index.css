@@ -84,6 +84,25 @@ html.dark .hover\:bg-teal-50:hover { background-color: #214047; }
 html.dark .hover\:text-ink:hover { color: var(--ink); }
 html.dark .shadow-soft { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18); }
 
+.theme-modal {
+  background-color: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--ink);
+  box-shadow: 0 24px 60px rgba(24, 59, 66, 0.18);
+}
+
+.theme-modal-section {
+  background-color: var(--surface-muted);
+  border-color: var(--border);
+}
+
+html.dark .theme-modal {
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.42);
+}
+
+html.dark .bg-amber-50 { background-color: #493b20; }
+html.dark .text-amber-600 { color: #f2c875; }
+
 html.dark tbody tr:hover {
   color: #f2ffff;
 }

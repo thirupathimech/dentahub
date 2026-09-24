@@ -133,6 +133,42 @@ export type Consultation = {
   status: string
 }
 
+export type Treatment = {
+  id: number
+  name: string
+  category: string | null
+  description: string | null
+  durationMinutes: number | null
+  price: number
+  active: boolean
+  branchId: number | null
+}
+
+export type TreatmentPlanItem = {
+  id: number | null
+  treatmentId: number
+  treatmentName: string
+  quantity: number
+  unitPrice: number
+}
+
+export type TreatmentPlan = {
+  id: number
+  patientId: number
+  patientName: string
+  doctorId: number | null
+  doctorName: string | null
+  branchId: number | null
+  title: string
+  diagnosis: string | null
+  status: string
+  startDate: string | null
+  targetDate: string | null
+  notes: string | null
+  treatments: TreatmentPlanItem[]
+  estimatedTotal: number
+}
+
 export type AuthUser = {
   id: string
   name: string

@@ -8,7 +8,7 @@ export default function AutocompleteField({ label, value, onChange, options, req
   const [open, setOpen] = useState(false)
 
   useEffect(() => {
-    const selected = options.find((option) => option.value === value)
+    const selected = options.find((option) => option.value && option.value === value)
     setQuery(selected?.label ?? '')
   }, [options, value])
 
