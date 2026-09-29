@@ -107,6 +107,9 @@ export default function AppointmentsPage() {
   const openCreate = () => { setEditing(null); setForm(emptyForm(selectedDate)); setFormOpen(true); setError('') }
   const openEdit = (appointment: Appointment) => { setEditing(appointment); setSelectedDate(appointment.appointmentDateTime.slice(0, 10)); setForm(fromAppointment(appointment)); setFormOpen(true); setError('') }
   const closeForm = () => { setEditing(null); setFormOpen(false); setConfirmOpen(false); setConflict(null); setForm(emptyForm(selectedDate)) }
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('action') === 'create') openCreate()
+  }, [])
   const filtered = statusFilter === 'ALL' ? appointments : appointments.filter((appointment) => appointment.status === statusFilter)
   const selectedDayAppointments = useMemo(() => filtered.filter((appointment) => appointment.appointmentDateTime.slice(0, 10) === selectedDate).sort((a, b) => a.appointmentDateTime.localeCompare(b.appointmentDateTime)), [filtered, selectedDate])
 

@@ -32,6 +32,9 @@ export default function ConsultationPage() {
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setModalOpen(true); setError('') }
   const openEdit = (item: Consultation) => { setEditing(item); setForm(fromConsultation(item)); setModalOpen(true); setError('') }
   const closeModal = () => { setModalOpen(false); setEditing(null) }
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('action') === 'create') openCreate()
+  }, [])
   async function save(event: FormEvent<HTMLFormElement>) { event.preventDefault(); setSaving(true); setError(''); try { const payload = { ...form, patientId: Number(form.patientId), doctorId: Number(form.doctorId) }; const saved = editing ? await apiPut<Consultation>(`/api/consultations/${editing.id}`, payload) : await apiPost<Consultation>('/api/consultations', payload); setConsultations((current) => editing ? current.map((item) => item.id === saved.id ? saved : item) : [saved, ...current]); closeModal() } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to save consultation') } finally { setSaving(false) } }
   async function remove(item: Consultation) { if (!window.confirm(`Delete consultation for ${item.patientName}?`)) return; try { await apiDelete(`/api/consultations/${item.id}`); setConsultations((current) => current.filter((value) => value.id !== item.id)) } catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to delete consultation') } }
 

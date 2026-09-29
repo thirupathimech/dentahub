@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Mail, Pencil, Phone, Plus, Search, Trash2, UserRound, X } from 'lucide-react'
 import { apiDelete, apiGet, apiPost, apiPut, Patient } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/PageStates'
@@ -22,8 +23,9 @@ function fromPatient(patient: Patient): PatientForm {
 }
 
 export default function PatientsPage() {
+  const location = useLocation()
   const [patients, setPatients] = useState<Patient[]>([])
-  const [search, setSearch] = useState('')
+  const [search, setSearch] = useState(() => new URLSearchParams(window.location.search).get('q') ?? '')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [form, setForm] = useState<PatientForm>(emptyForm)
@@ -45,9 +47,18 @@ export default function PatientsPage() {
     return () => window.clearTimeout(timer)
   }, [search])
 
+  useEffect(() => {
+    const query = new URLSearchParams(location.search).get('q') ?? ''
+    setSearch((current) => current === query ? current : query)
+  }, [location.search])
+
   const openCreate = () => { setEditing(null); setForm(emptyForm); setFormOpen(true); setError('') }
   const openEdit = (patient: Patient) => { setEditing(patient); setForm(fromPatient(patient)); setFormOpen(true); setError('') }
   const closeForm = () => { setEditing(null); setFormOpen(false); setForm(emptyForm) }
+
+  useEffect(() => {
+    if (new URLSearchParams(window.location.search).get('action') === 'create') openCreate()
+  }, [])
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()

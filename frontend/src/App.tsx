@@ -1,8 +1,9 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { FormEvent, useEffect, useRef, useState } from 'react'
 import { NavLink, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom'
 import AppointmentsPage from './pages/AppointmentsPage'
 import BillingPage from './pages/BillingPage'
 import ConsultationPage from './pages/ConsultationPage'
+import DentalChartPage from './pages/DentalChartPage'
 import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
@@ -11,7 +12,7 @@ import SettingsPage from './pages/SettingsPage'
 import TreatmentPlansPage from './pages/TreatmentPlansPage'
 import TreatmentsPage from './pages/TreatmentsPage'
 import UsersRolesPage from './pages/UsersRolesPage'
-import { apiGet, apiPost, AuthUser, Branch, ClinicSettings } from './api'
+import { apiGet, apiPost, AuthUser, Branch, ClinicSettings, Patient } from './api'
 import { ALL_PERMISSION_KEYS } from './permissions'
 import {
   Activity,
@@ -198,7 +199,7 @@ function App() {
     <div className="min-h-screen bg-cream text-ink">
       <Sidebar open={sidebarOpen} collapsed={collapsed} permissions={permissions} branding={branding} onClose={() => setSidebarOpen(false)} onLogout={logout} />
       <main className={`min-h-screen transition-all duration-300 ${collapsed ? 'lg:pl-[88px]' : 'lg:pl-[260px]'}`}>
-        <Header permissions={permissions} branding={branding} darkMode={darkMode} onMenu={() => setSidebarOpen(true)} onToggleTheme={() => setDarkMode((value) => !value)} onLogout={logout} />
+        <Header permissions={permissions} darkMode={darkMode} onMenu={() => setSidebarOpen(true)} onToggleTheme={() => setDarkMode((value) => !value)} onLogout={logout} />
         <div className="mx-auto max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-10">
           <Routes>
             <Route path="/" element={can('dashboard') ? <Dashboard permissions={permissions} /> : firstAllowedPath !== '/' ? <Navigate to={firstAllowedPath} replace /> : <AccessDenied />} />
@@ -207,6 +208,7 @@ function App() {
             <Route path="/appointments" element={can('appointments') ? <AppointmentsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/doctors" element={can('doctors') ? <DoctorsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/consultation" element={can('consultation') ? <ConsultationPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/dental-chart" element={can('dental-chart') ? <DentalChartPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/branch" element={can('branch') ? <BranchPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/settings" element={can('settings') ? <SettingsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/users-roles" element={can('users-roles') ? <UsersRolesPage /> : <Navigate to={firstAllowedPath} replace />} />
@@ -214,7 +216,7 @@ function App() {
             <Route path="/treatments" element={can('treatments') ? <TreatmentsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/billing" element={can('billing') ? <BillingPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/payments" element={can('payments') ? <PaymentsPage /> : <Navigate to={firstAllowedPath} replace />} />
-            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/consultation', '/branch', '/users-roles', '/treatment-plans', '/treatments', '/billing', '/payments'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
+            {navigation.filter(({ path }) => !['/', '/patients', '/appointments', '/doctors', '/consultation', '/dental-chart', '/branch', '/users-roles', '/treatment-plans', '/treatments', '/billing', '/payments'].includes(path)).filter(({ path }) => path !== '/settings').map(({ label, path, icon: Icon, permission }) => (
               <Route key={path} path={path} element={can(permission) ? <ComingSoonPage label={label} icon={Icon} /> : <Navigate to={firstAllowedPath} replace />} />
             ))}
             <Route path="*" element={<Navigate to={firstAllowedPath} replace />} />
@@ -271,7 +273,7 @@ function SidebarLink({ item, collapsed, onClose }: { item: MenuItem; collapsed: 
   return <NavLink to={item.path} onClick={onClose} title={collapsed ? item.label : undefined} className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition ${collapsed ? 'lg:justify-center' : ''} ${isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-500 hover:bg-slate-50 hover:text-ink'}`}><Icon size={18} strokeWidth={2} /><span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span></NavLink>
 }
 
-function Header({ permissions, branding, darkMode, onMenu, onToggleTheme, onLogout }: { permissions: string[]; branding: Branding; darkMode: boolean; onMenu: () => void; onToggleTheme: () => void; onLogout: () => void }) {
+function Header({ permissions, darkMode, onMenu, onToggleTheme, onLogout }: { permissions: string[]; darkMode: boolean; onMenu: () => void; onToggleTheme: () => void; onLogout: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   const current = [...navigation, ...utilityNavigation].find((item) => item.path === location.pathname)
@@ -279,6 +281,8 @@ function Header({ permissions, branding, darkMode, onMenu, onToggleTheme, onLogo
   const [searchOpen, setSearchOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
+  const profileMenuRef = useRef<HTMLDivElement>(null)
+  const [patientResults, setPatientResults] = useState<Patient[]>([])
   const [profile] = useState<{ name?: string; role?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') } catch { return null }
   })
@@ -289,18 +293,43 @@ function Header({ permissions, branding, darkMode, onMenu, onToggleTheme, onLogo
   const searchResults = searchQuery.trim()
     ? searchableItems.filter((item) => `${item.label} ${item.path}`.toLowerCase().includes(searchQuery.trim().toLowerCase())).slice(0, 6)
     : []
+  useEffect(() => {
+    const query = searchQuery.trim()
+    if (!query) { setPatientResults([]); return }
+    const timer = window.setTimeout(() => {
+      apiGet<Patient[]>(`/api/patients?q=${encodeURIComponent(query)}`)
+        .then((patients) => setPatientResults(patients.slice(0, 5)))
+        .catch(() => setPatientResults([]))
+    }, 250)
+    return () => window.clearTimeout(timer)
+  }, [searchQuery])
+  useEffect(() => {
+    if (!profileMenuOpen) return
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) setProfileMenuOpen(false)
+    }
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape') setProfileMenuOpen(false) }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [profileMenuOpen])
   const goToSearchResult = (path: string) => {
     navigate(path)
     setSearchQuery('')
     setSearchOpen(false)
   }
+  const goToPatientResult = (patient: Patient) => {
+    navigate(`/patients?q=${encodeURIComponent(patient.phone || patient.fullName)}`)
+    setSearchQuery('')
+    setSearchOpen(false)
+  }
   return <>
-    <header className="app-toolbar flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10">
+    <header className="app-toolbar relative z-[60] flex h-[88px] items-center justify-between gap-4 overflow-visible border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10">
       <div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div>
       <div className="flex items-center gap-2 sm:gap-4">
-        <div className="hidden h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:flex" title="Clinic logo">
-          {branding.logoDataUrl ? <img src={branding.logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={18} className="text-teal-600" />}
-        </div>
         <div className="toolbar-search relative hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex">
           <Search size={16} />
           <input
@@ -315,19 +344,22 @@ function Header({ permissions, branding, darkMode, onMenu, onToggleTheme, onLogo
               if (event.key === 'Enter' && searchResults[0]) goToSearchResult(searchResults[0].path)
             }}
           />
-          {searchOpen && searchQuery.trim() && <div className="toolbar-search-results absolute left-0 top-[calc(100%+10px)] z-50 w-64 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
-            {searchResults.length > 0 ? searchResults.map(({ label, path, icon: Icon }) => <button key={path} type="button" onClick={() => goToSearchResult(path)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-teal-50 hover:text-teal-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600"><Icon size={15} /></span><span><span className="block text-xs font-bold text-ink">{label}</span><span className="block text-[10px] text-muted">Open section</span></span></button>) : <p className="px-3 py-3 text-xs font-semibold text-muted">No matching pages found.</p>}
+          {searchOpen && searchQuery.trim() && <div className="toolbar-search-results absolute left-0 top-[calc(100%+10px)] z-50 w-72 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
+            {searchResults.map(({ label, path, icon: Icon }) => <button key={path} type="button" onClick={() => goToSearchResult(path)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-teal-50 hover:text-teal-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600"><Icon size={15} /></span><span><span className="block text-xs font-bold text-ink">{label}</span><span className="block text-[10px] text-muted">Open section</span></span></button>)}
+            {patientResults.length > 0 && <><p className="px-3 pb-1 pt-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">Patients</p>{patientResults.map((patient) => <button key={patient.id} type="button" onClick={() => goToPatientResult(patient)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-teal-50 hover:text-teal-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><UserRound size={15} /></span><span className="min-w-0"><span className="block truncate text-xs font-bold text-ink">{patient.fullName}</span><span className="block truncate text-[10px] text-muted">{patient.phone}</span></span></button>)}</>}
+            {searchResults.length === 0 && patientResults.length === 0 && <p className="px-3 py-3 text-xs font-semibold text-muted">No matching pages or patients found.</p>}
           </div>}
         </div>
         <button type="button" aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-pressed={darkMode} onClick={onToggleTheme} className="toolbar-action rounded-xl border border-slate-200 bg-white p-2.5 text-muted shadow-sm transition hover:text-teal-700">
           {darkMode ? <Sun size={18} /> : <Moon size={18} />}
         </button>
         <div className="toolbar-divider hidden h-8 w-px bg-slate-200 sm:block" />
-        <div className="relative">
+        <div ref={profileMenuRef} className="relative z-[70]">
           <button type="button" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((value) => !value)} className="toolbar-profile flex items-center gap-2 rounded-xl p-1.5 transition"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 text-sm font-bold text-teal-700">{initials || 'U'}</div><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-ink">{profileName}</span><span className="block text-[10px] text-muted">{profileRole}</span></span><ChevronDown size={15} className="hidden text-muted sm:block" /></button>
-          {profileMenuOpen && <div className="toolbar-dropdown absolute right-0 top-[calc(100%+10px)] z-50 w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
+          {profileMenuOpen && <div className="toolbar-dropdown absolute right-0 top-[calc(100%+10px)] z-[80] w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
             <button type="button" onClick={() => { setProfileMenuOpen(false); setChangePasswordOpen(true) }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-ink transition hover:bg-teal-50 hover:text-teal-700"><LockKeyhole size={16} className="text-muted" />Change password</button>
-            <button type="button" onClick={() => { setProfileMenuOpen(false); onLogout() }} className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-rose-600 transition hover:bg-rose-50"><LogOut size={16} />Sign out</button>
+            <div className="my-1 border-t border-slate-100" />
+            <button type="button" onClick={() => { setProfileMenuOpen(false); onLogout() }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-rose-600 transition hover:bg-rose-50"><LogOut size={16} />Sign out</button>
           </div>}
         </div>
       </div>
@@ -494,8 +526,9 @@ function StatusBadge({ status }: { status: string }) {
 }
 
 function QuickActions({ permissions }: { permissions: string[] }) {
-  const actions = [{ permission: 'patients', label: 'Add new patient', description: 'Create a patient profile', icon: UserRound, color: 'bg-teal-50 text-teal-600' }, { permission: 'appointments', label: 'Schedule appointment', description: 'Book a new appointment', icon: CalendarDays, color: 'bg-blue-50 text-blue-500' }, { permission: 'consultation', label: 'Start consultation', description: 'Open clinical workspace', icon: MessageSquareMore, color: 'bg-violet-50 text-violet-500' }].filter((action) => permissions.includes(action.permission))
-  return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft sm:p-6"><div><h3 className="heading-font text-base font-extrabold text-ink">Quick actions</h3><p className="mt-1 text-xs text-muted">Common tasks, right at your fingertips</p></div><div className="mt-5 space-y-3">{actions.map(({ label, description, icon: Icon, color }) => <button key={label} className="group flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:border-teal-100 hover:bg-teal-50/40"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color}`}><Icon size={19} /></span><span className="flex-1"><span className="block text-xs font-bold text-ink">{label}</span><span className="mt-1 block text-[11px] text-muted">{description}</span></span><span className="text-lg text-slate-300 transition group-hover:translate-x-1 group-hover:text-teal-600">→</span></button>)}</div></div>
+  const navigate = useNavigate()
+  const actions = [{ permission: 'patients', path: '/patients?action=create', label: 'Add new patient', description: 'Create a patient profile', icon: UserRound, color: 'bg-teal-50 text-teal-600' }, { permission: 'appointments', path: '/appointments?action=create', label: 'Schedule appointment', description: 'Book a new appointment', icon: CalendarDays, color: 'bg-blue-50 text-blue-500' }, { permission: 'consultation', path: '/consultation?action=create', label: 'Start consultation', description: 'Open clinical workspace', icon: MessageSquareMore, color: 'bg-violet-50 text-violet-500' }].filter((action) => permissions.includes(action.permission))
+  return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft sm:p-6"><div><h3 className="heading-font text-base font-extrabold text-ink">Quick actions</h3><p className="mt-1 text-xs text-muted">Common tasks, right at your fingertips</p></div><div className="mt-5 space-y-3">{actions.map(({ path, label, description, icon: Icon, color }) => <button key={label} onClick={() => navigate(path)} className="group flex w-full items-center gap-3 rounded-xl border border-slate-100 p-3 text-left transition hover:border-teal-100 hover:bg-teal-50/40"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${color}`}><Icon size={19} /></span><span className="flex-1"><span className="block text-xs font-bold text-ink">{label}</span><span className="mt-1 block text-[11px] text-muted">{description}</span></span><span className="text-lg text-slate-300 transition group-hover:translate-x-1 group-hover:text-teal-600">→</span></button>)}</div></div>
 }
 
 function AccessDenied() {
