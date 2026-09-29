@@ -102,6 +102,20 @@ public class UserController {
         return ResponseEntity.ok(toResponse(repository.save(user)));
     }
 
+    @PostMapping("/{id}/transfer")
+    public ResponseEntity<?> transfer(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody TransferRequest request) {
+        UserAccount user = repository.findById(id).orElse(null);
+        if (user == null) return ResponseEntity.notFound().build();
+        if (!accessService.canAccess(authorization, user.getBranchId()) || !accessService.canAccess(authorization, request.branchId())) {
+            return ResponseEntity.status(403).body(new ErrorResponse("You can only transfer staff within branches you manage"));
+        }
+        ResponseEntity<?> validation = validateBranchAssignment(user.getRoleId(), request.branchId());
+        if (validation != null) return validation;
+        user.setBranchId(request.branchId());
+        return ResponseEntity.ok(toResponse(repository.save(user)));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization) {
         if (!repository.findById(id).map(user -> accessService.canAccess(authorization, user.getBranchId())).orElse(false)) return ResponseEntity.notFound().build();
@@ -134,6 +148,7 @@ public class UserController {
 
     public record CreateUserRequest(@NotBlank String fullName, @NotBlank @Email String email, @NotBlank String password, Long roleId, Long branchId, String status) { }
     public record UpdateUserRequest(@NotBlank String fullName, @NotBlank @Email String email, String password, Long roleId, Long branchId, String status) { }
+    public record TransferRequest(Long branchId) { }
     public record UserResponse(Long id, String fullName, String email, Long roleId, String roleName, List<String> permissions, Long branchId, String status) { }
     public record ErrorResponse(String message) { }
 }

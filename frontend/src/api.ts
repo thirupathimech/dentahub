@@ -86,6 +86,9 @@ export type Branch = {
   city: string | null
   state: string | null
   postalCode: string | null
+  currency: string | null
+  timezone: string | null
+  appointmentDurationMinutes: number | null
   active: boolean
 }
 

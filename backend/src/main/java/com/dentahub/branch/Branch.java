@@ -31,6 +31,9 @@ public class Branch {
     private String city;
     private String state;
     private String postalCode;
+    private String currency;
+    private String timezone;
+    private Integer appointmentDurationMinutes;
 
     @Column(nullable = false)
     private boolean active = true;
@@ -68,6 +71,12 @@ public class Branch {
     public void setState(String state) { this.state = state; }
     public String getPostalCode() { return postalCode; }
     public void setPostalCode(String postalCode) { this.postalCode = postalCode; }
+    public String getCurrency() { return currency; }
+    public void setCurrency(String currency) { this.currency = currency; }
+    public String getTimezone() { return timezone; }
+    public void setTimezone(String timezone) { this.timezone = timezone; }
+    public Integer getAppointmentDurationMinutes() { return appointmentDurationMinutes; }
+    public void setAppointmentDurationMinutes(Integer value) { appointmentDurationMinutes = value; }
     public boolean isActive() { return active; }
     public void setActive(boolean active) { this.active = active; }
     public Instant getCreatedAt() { return createdAt; }

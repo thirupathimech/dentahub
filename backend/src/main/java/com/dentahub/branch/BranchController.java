@@ -76,6 +76,9 @@ public class BranchController {
         branch.setCity(blankToNull(request.city()));
         branch.setState(blankToNull(request.state()));
         branch.setPostalCode(blankToNull(request.postalCode()));
+        branch.setCurrency(blankToNull(request.currency()));
+        branch.setTimezone(blankToNull(request.timezone()));
+        branch.setAppointmentDurationMinutes(request.appointmentDurationMinutes());
         branch.setActive(request.active() == null || request.active());
     }
 
@@ -85,7 +88,7 @@ public class BranchController {
 
     private static BranchResponse toResponse(Branch branch) {
         return new BranchResponse(branch.getId(), branch.getName(), branch.getCode(), branch.getPhone(), branch.getEmail(),
-                branch.getAddress(), branch.getCity(), branch.getState(), branch.getPostalCode(), branch.isActive());
+                branch.getAddress(), branch.getCity(), branch.getState(), branch.getPostalCode(), branch.getCurrency(), branch.getTimezone(), branch.getAppointmentDurationMinutes(), branch.isActive());
     }
 
     public record BranchRequest(
@@ -97,6 +100,9 @@ public class BranchController {
             String city,
             String state,
             String postalCode,
+            String currency,
+            String timezone,
+            Integer appointmentDurationMinutes,
             Boolean active) {
     }
 
@@ -110,6 +116,9 @@ public class BranchController {
             String city,
             String state,
             String postalCode,
+            String currency,
+            String timezone,
+            Integer appointmentDurationMinutes,
             boolean active) {
     }
 

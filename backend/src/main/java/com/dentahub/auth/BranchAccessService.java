@@ -36,6 +36,10 @@ public class BranchAccessService {
     }
 
     public boolean canAccess(String authorization, Long branchId) {
+        // Records without a branch are centralized/shared records. They must remain
+        // usable by branch-scoped staff; newly created records are still assigned to
+        // the user's branch by each module controller.
+        if (branchId == null) return true;
         return scopedBranch(authorization).map(scoped -> scoped.equals(branchId)).orElse(true);
     }
 

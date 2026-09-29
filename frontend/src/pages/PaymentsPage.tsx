@@ -5,7 +5,8 @@ import { EmptyState, ErrorState, LoadingState } from '../components/PageStates'
 
 type PaymentForm = { invoiceId: string; paymentDate: string; amount: string; method: string; reference: string; notes: string }
 const methods = ['CASH', 'UPI', 'CARD', 'BANK_TRANSFER', 'OTHER']
-const emptyForm = (): PaymentForm => ({ invoiceId: '', paymentDate: new Date().toISOString().slice(0, 10), amount: '', method: 'CASH', reference: '', notes: '' })
+const todayValue = () => { const date = new Date(); const offset = date.getTimezoneOffset(); return new Date(date.getTime() - offset * 60 * 1000).toISOString().slice(0, 10) }
+const emptyForm = (): PaymentForm => ({ invoiceId: '', paymentDate: todayValue(), amount: '', method: 'CASH', reference: '', notes: '' })
 const money = (value: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value || 0)
 const dateLabel = (value: string) => new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' })
 
@@ -15,6 +16,8 @@ export default function PaymentsPage() {
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [fromDate, setFromDate] = useState(() => todayValue())
+  const [toDate, setToDate] = useState(() => todayValue())
   const [form, setForm] = useState<PaymentForm>(emptyForm())
   const [printingPayment, setPrintingPayment] = useState<Payment | null>(null)
   const [formOpen, setFormOpen] = useState(false)
@@ -31,8 +34,8 @@ export default function PaymentsPage() {
 
   useEffect(() => { load() }, [])
 
-  const visible = useMemo(() => payments.filter((payment) => `${payment.receiptNumber} ${payment.invoiceNumber} ${payment.patientName} ${payment.method}`.toLowerCase().includes(query.toLowerCase())), [payments, query])
-  const totals = useMemo(() => ({ received: payments.reduce((sum, payment) => sum + payment.amount, 0), count: payments.length, upi: payments.filter((payment) => payment.method === 'UPI').reduce((sum, payment) => sum + payment.amount, 0) }), [payments])
+  const visible = useMemo(() => payments.filter((payment) => `${payment.receiptNumber} ${payment.invoiceNumber} ${payment.patientName} ${payment.method}`.toLowerCase().includes(query.toLowerCase()) && (!fromDate || payment.paymentDate >= fromDate) && (!toDate || payment.paymentDate <= toDate)), [payments, query, fromDate, toDate])
+  const totals = useMemo(() => ({ received: visible.reduce((sum, payment) => sum + payment.amount, 0), count: visible.length, upi: visible.filter((payment) => payment.method === 'UPI').reduce((sum, payment) => sum + payment.amount, 0) }), [visible])
   const openCreate = () => { setForm(emptyForm()); setFormOpen(true); setError('') }
   const closeForm = () => { setFormOpen(false); setForm(emptyForm()) }
   const selectInvoice = (invoiceId: string) => { const invoice = invoices.find((item) => String(item.id) === invoiceId); setForm({ ...form, invoiceId, amount: invoice ? String(invoice.balance) : '' }) }
@@ -66,9 +69,9 @@ export default function PaymentsPage() {
   return <div className="space-y-6 py-7">
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="text-sm text-muted">Record collections against invoices and keep a clean payment history.</p></div><button onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700"><Plus size={16} /> Record payment</button></div>
     <div className="grid gap-4 sm:grid-cols-3"><SummaryCard label="Total received" value={money(totals.received)} caption="All recorded payments" icon={IndianRupee} tone="teal" /><SummaryCard label="Payment entries" value={String(totals.count)} caption="Receipts in this workspace" icon={Receipt} tone="blue" /><SummaryCard label="Via UPI" value={money(totals.upi)} caption="Digital collections" icon={CreditCard} tone="violet" /></div>
-    <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-soft"><div className="flex max-w-md items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-2.5 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><Search size={17} className="text-muted" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search receipt, invoice or patient" /></div></div>
+    <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-soft"><div className="flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-2.5 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><Search size={17} className="text-muted" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search receipt, invoice or patient" /></div><input aria-label="Payments from date" type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input aria-label="Payments to date" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /></div>
     {error && !formOpen && <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-600">{error}</p>}
-    {loading ? <LoadingState /> : error && payments.length === 0 ? <ErrorState message={error} onRetry={load} /> : visible.length === 0 ? <EmptyState title="No payments found" description="Record a payment from an invoice to see collection history here." /> : <PaymentTable payments={visible} onDelete={remove} onPrint={printPayment} />}
+    {loading ? <LoadingState /> : error && payments.length === 0 ? <ErrorState message={error} onRetry={load} /> : visible.length === 0 ? <EmptyState title="No payments match these filters" description="Try another date or search term." /> : <PaymentTable payments={visible} onDelete={remove} onPrint={printPayment} />}
     {printingPayment && <ReceiptPrint payment={printingPayment} />}
     {formOpen && <PaymentModal form={form} setForm={setForm} invoices={invoices} selectInvoice={selectInvoice} saving={saving} error={error} onClose={closeForm} onSave={save} />}
   </div>

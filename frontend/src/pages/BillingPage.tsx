@@ -7,9 +7,11 @@ import { patientOption } from '../components/patientOptions'
 
 type InvoiceLine = { description: string; quantity: string; unitPrice: string }
 type InvoiceForm = { patientId: string; treatmentPlanId: string; issueDate: string; dueDate: string; status: string; discount: string; tax: string; notes: string; items: InvoiceLine[] }
+type BranchReport = { branchId: number; patients: number; doctors: number; appointments: number; billed: number; collected: number; outstanding: number }
 
 const statuses = ['DRAFT', 'ISSUED', 'VOID']
-const emptyForm = (): InvoiceForm => ({ patientId: '', treatmentPlanId: '', issueDate: new Date().toISOString().slice(0, 10), dueDate: '', status: 'ISSUED', discount: '0', tax: '0', notes: '', items: [{ description: '', quantity: '1', unitPrice: '' }] })
+const todayValue = () => { const date = new Date(); const offset = date.getTimezoneOffset(); return new Date(date.getTime() - offset * 60 * 1000).toISOString().slice(0, 10) }
+const emptyForm = (): InvoiceForm => ({ patientId: '', treatmentPlanId: '', issueDate: todayValue(), dueDate: '', status: 'ISSUED', discount: '0', tax: '0', notes: '', items: [{ description: '', quantity: '1', unitPrice: '' }] })
 const money = (value: number) => new Intl.NumberFormat(undefined, { style: 'currency', currency: 'INR', maximumFractionDigits: 2 }).format(value || 0)
 const dateLabel = (value: string | null) => value ? new Date(`${value}T00:00:00`).toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' }) : '—'
 
@@ -35,10 +37,11 @@ export default function BillingPage() {
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
   const [branchFilter, setBranchFilter] = useState('ALL')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [fromDate, setFromDate] = useState(() => todayValue())
+  const [toDate, setToDate] = useState(() => todayValue())
   const [sort, setSort] = useState<'date' | 'amount'>('date')
   const [page, setPage] = useState(1)
+  const [branchReport, setBranchReport] = useState<BranchReport | null>(null)
   const pageSize = 10
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -58,6 +61,11 @@ export default function BillingPage() {
   }
 
   useEffect(() => { load() }, [])
+  useEffect(() => {
+    if (branchFilter === 'ALL') { setBranchReport(null); return }
+    const params = new URLSearchParams({ branchId: branchFilter }); if (fromDate) params.set('from', fromDate); if (toDate) params.set('to', toDate)
+    apiGet<BranchReport>(`/api/reports/branch?${params.toString()}`).then(setBranchReport).catch(() => setBranchReport(null))
+  }, [branchFilter, fromDate, toDate])
 
   const filtered = useMemo(() => invoices.filter((invoice) => {
     const matchesQuery = `${invoice.invoiceNumber} ${invoice.patientName}`.toLowerCase().includes(query.toLowerCase())
@@ -70,12 +78,12 @@ export default function BillingPage() {
   const totals = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
     return {
-      billed: invoices.filter((item) => item.status !== 'VOID').reduce((sum, item) => sum + item.total, 0),
-      collected: invoices.reduce((sum, item) => sum + item.paidAmount, 0),
-      outstanding: invoices.filter((item) => item.status !== 'VOID').reduce((sum, item) => sum + item.balance, 0),
-      overdue: invoices.filter((item) => item.status !== 'VOID' && item.balance > 0 && item.dueDate && item.dueDate < today).reduce((sum, item) => sum + item.balance, 0),
+      billed: filtered.filter((item) => item.status !== 'VOID').reduce((sum, item) => sum + item.total, 0),
+      collected: filtered.reduce((sum, item) => sum + item.paidAmount, 0),
+      outstanding: filtered.filter((item) => item.status !== 'VOID').reduce((sum, item) => sum + item.balance, 0),
+      overdue: filtered.filter((item) => item.status !== 'VOID' && item.balance > 0 && item.dueDate && item.dueDate < today).reduce((sum, item) => sum + item.balance, 0),
     }
-  }, [invoices])
+  }, [filtered])
 
   const openCreate = () => { setEditing(null); setForm(emptyForm()); setFormOpen(true); setError('') }
   const openEdit = (invoice: BillingInvoice) => { setEditing(invoice); setForm(fromInvoice(invoice)); setFormOpen(true); setError('') }
@@ -124,8 +132,9 @@ export default function BillingPage() {
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="text-sm text-muted">Create invoices, track balances, and keep every patient account clear.</p></div><button onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700"><Plus size={16} /> Create invoice</button></div>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><SummaryCard label="Total billed" value={money(totals.billed)} caption="Across active invoices" icon={FileText} tone="teal" /><SummaryCard label="Collected" value={money(totals.collected)} caption="Payments received" icon={CheckCircle2} tone="emerald" /><SummaryCard label="Outstanding" value={money(totals.outstanding)} caption="Open patient balances" icon={Receipt} tone="blue" /><SummaryCard label="Overdue" value={money(totals.overdue)} caption="Past their due date" icon={CalendarDays} tone="orange" /></div>
     <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-soft"><div className="flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-2.5"><Search size={17} className="text-muted" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search invoice or patient" /></div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-ink outline-none"><option value="ALL">All statuses</option><option value="DRAFT">Draft</option><option value="ISSUED">Issued</option><option value="PARTIALLY_PAID">Partially paid</option><option value="PAID">Paid</option><option value="VOID">Void</option></select><select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-ink outline-none"><option value="ALL">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><select value={sort} onChange={(event) => setSort(event.target.value as 'date' | 'amount')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-ink outline-none"><option value="date">Newest first</option><option value="amount">Highest amount</option></select></div>
+    {branchReport && <div className="grid gap-3 rounded-2xl border border-teal-100 bg-teal-50/60 p-4 text-xs sm:grid-cols-4"><p><span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-teal-700/70">Branch patients</span><strong className="mt-1 block text-lg text-teal-900">{branchReport.patients}</strong></p><p><span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-teal-700/70">Billed</span><strong className="mt-1 block text-lg text-teal-900">{money(branchReport.billed)}</strong></p><p><span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-teal-700/70">Collected</span><strong className="mt-1 block text-lg text-teal-900">{money(branchReport.collected)}</strong></p><p><span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-teal-700/70">Outstanding</span><strong className="mt-1 block text-lg text-teal-900">{money(branchReport.outstanding)}</strong></p></div>}
     {error && !formOpen && <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-600">{error}</p>}
-    {loading ? <LoadingState /> : error && invoices.length === 0 ? <ErrorState message={error} onRetry={load} /> : filtered.length === 0 ? <EmptyState title="No invoices found" description="Create an invoice to start tracking a patient's bill and payments." /> : <><InvoiceTable invoices={visible} onEdit={openEdit} onDelete={remove} onPrint={printInvoice} /><Pagination page={page} pageCount={pageCount} onChange={setPage} /></>}
+    {loading ? <LoadingState /> : error && invoices.length === 0 ? <ErrorState message={error} onRetry={load} /> : filtered.length === 0 ? <EmptyState title="No invoices match these filters" description="Try another date, branch, status, or search term." /> : <><InvoiceTable invoices={visible} onEdit={openEdit} onDelete={remove} onPrint={printInvoice} /><Pagination page={page} pageCount={pageCount} onChange={setPage} /></>}
     {printingInvoice && <InvoicePrint invoice={printingInvoice} />}
     {formOpen && <InvoiceModal editing={editing} form={form} setForm={setForm} patients={patients} plans={plans} choosePlan={choosePlan} updateLine={updateLine} saving={saving} error={error} onClose={closeForm} onSave={save} />}
   </div>

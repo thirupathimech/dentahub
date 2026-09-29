@@ -74,10 +74,14 @@ const utilityNavigation: MenuItem[] = [{ label: 'Settings', path: '/settings', i
 
 type Summary = {
   date: string
+  branchId: number | null
   totalPatients: number
   todayAppointments: number
   totalDoctors: number
   totalBranches: number
+  totalBilled: number
+  totalCollected: number
+  totalOutstanding: number
   appointments: Array<{
     appointmentDateTime: string
     doctor: string
@@ -95,10 +99,14 @@ type Branding = {
 
 const initialSummary: Summary = {
   date: new Date().toISOString().slice(0, 10),
+  branchId: null,
   totalPatients: 0,
   todayAppointments: 0,
   totalDoctors: 0,
   totalBranches: 0,
+  totalBilled: 0,
+  totalCollected: 0,
+  totalOutstanding: 0,
   appointments: [],
 }
 
@@ -490,19 +498,27 @@ function LoginPage({ branding, onLogin }: { branding: Branding; onLogin: () => v
 
 function Dashboard({ permissions }: { permissions: string[] }) {
   const [summary, setSummary] = useState<Summary>(initialSummary)
+  const [branches, setBranches] = useState<Branch[]>([])
+  const [profile] = useState<AuthUser | null>(() => { try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') } catch { return null } })
+  const branchScoped = Boolean(profile?.branchScoped && profile.branchId)
+  const [branchFilter, setBranchFilter] = useState(branchScoped ? String(profile?.branchId) : 'ALL')
   const [loading, setLoading] = useState(true)
 
   const formattedDate = new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(new Date(`${summary.date}T00:00:00`))
   const greeting = getGreeting()
 
   useEffect(() => {
-    apiGet<Summary>('/api/dashboard/summary')
+    apiGet<Branch[]>('/api/branches').then(setBranches).catch(() => undefined)
+  }, [])
+
+  useEffect(() => {
+    apiGet<Summary>(`/api/dashboard/summary${branchFilter === 'ALL' ? '' : `?branchId=${branchFilter}`}`)
       .then((data) => setSummary(data))
       .catch(() => setSummary(initialSummary))
       .finally(() => setLoading(false))
-  }, [])
+  }, [branchFilter])
 
-  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">{formattedDate}</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">{greeting} <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">Here is what is happening at your clinic today. You have <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled.</p></div><div className="absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} caption="Live clinic total" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} caption="Scheduled for today" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Total Doctors" value={summary.totalDoctors} caption="Registered clinicians" icon={Stethoscope} tone="violet" loading={loading} /><StatCard label="Total Branches" value={summary.totalBranches} caption="Configured locations" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions permissions={permissions} /></section></div>
+  return <div className="space-y-7 py-7"><section className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] px-6 py-7 text-white shadow-lg shadow-teal-600/10 sm:px-8 sm:py-8"><div className="relative z-10 max-w-xl"><p className="mb-2 text-sm font-medium text-teal-50/80">{formattedDate}</p><h2 className="heading-font text-2xl font-extrabold tracking-tight sm:text-3xl">{greeting} <span className="inline-block">👋</span></h2><p className="mt-3 max-w-md text-sm leading-6 text-teal-50/80">{branchFilter === 'ALL' ? 'All branch overview' : `${branches.find((branch) => String(branch.id) === branchFilter)?.name ?? 'Selected branch'} overview`} · <span className="font-bold text-white">{summary.todayAppointments} appointments</span> scheduled today.</p></div><select aria-label="Dashboard branch filter" disabled={branchScoped} value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="relative z-20 absolute right-6 top-6 rounded-xl border border-white/20 bg-white/15 px-3 py-2 text-xs font-bold text-white outline-none disabled:cursor-not-allowed disabled:opacity-80 [&>option]:text-ink">{!branchScoped && <option value="ALL">All branches</option>}{branches.filter((branch) => !branchScoped || String(branch.id) === String(profile?.branchId)).map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><div className="pointer-events-none absolute -right-20 -top-32 h-80 w-80 rounded-full border-[42px] border-white/10" /><div className="pointer-events-none absolute -bottom-28 right-36 h-56 w-56 rounded-full border-[28px] border-white/10" /><div className="pointer-events-none absolute bottom-6 right-8 hidden rounded-2xl border border-white/20 bg-white/10 p-4 backdrop-blur-sm md:block"><Stethoscope size={58} strokeWidth={1.2} className="text-white/70" /></div></section><section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><StatCard label="Total Patients" value={summary.totalPatients.toLocaleString()} caption="Centralized patient records" icon={UsersRound} tone="teal" loading={loading} /><StatCard label="Today's Appointments" value={summary.todayAppointments} caption="Scheduled for today" icon={CalendarDays} tone="blue" loading={loading} /><StatCard label="Total Doctors" value={summary.totalDoctors} caption="Registered clinicians" icon={Stethoscope} tone="violet" loading={loading} /><StatCard label="Total Branches" value={summary.totalBranches} caption="Configured locations" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-4 sm:grid-cols-3"><StatCard label="Billed" value={`₹${summary.totalBilled.toLocaleString()}`} caption="Branch billing report" icon={FileText} tone="teal" loading={loading} /><StatCard label="Collected" value={`₹${summary.totalCollected.toLocaleString()}`} caption="Payments received" icon={CreditCard} tone="blue" loading={loading} /><StatCard label="Outstanding" value={`₹${summary.totalOutstanding.toLocaleString()}`} caption="Open balances" icon={CircleDollarSign} tone="orange" loading={loading} /></section><section className="grid gap-6 xl:grid-cols-[1.45fr_1fr]"><Appointments appointments={summary.appointments} /><QuickActions permissions={permissions} /></section></div>
 }
 
 function getGreeting() {
