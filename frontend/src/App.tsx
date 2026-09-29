@@ -11,7 +11,7 @@ import SettingsPage from './pages/SettingsPage'
 import TreatmentPlansPage from './pages/TreatmentPlansPage'
 import TreatmentsPage from './pages/TreatmentsPage'
 import UsersRolesPage from './pages/UsersRolesPage'
-import { apiGet, apiPost } from './api'
+import { apiGet, apiPost, AuthUser, Branch, ClinicSettings } from './api'
 import { ALL_PERMISSION_KEYS } from './permissions'
 import {
   Activity,
@@ -85,6 +85,12 @@ type Summary = {
   }>
 }
 
+type Branding = {
+  clinicName: string
+  branchName: string
+  logoDataUrl: string
+}
+
 const initialSummary: Summary = {
   date: new Date().toISOString().slice(0, 10),
   totalPatients: 0,
@@ -106,9 +112,30 @@ function readStoredPermissions() {
   return []
 }
 
+function readStoredUser() {
+  try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') as AuthUser | null } catch { return null }
+}
+
+const defaultBranding: Branding = { clinicName: 'Clinic', branchName: 'Clinic workspace', logoDataUrl: '' }
+
+function clinicLabel(value?: string | null) {
+  return value?.trim() || defaultBranding.clinicName
+}
+
+function resolveBranchName(user: AuthUser | null, branches: Branch[]) {
+  if (branches.length === 0) return defaultBranding.branchName
+  if (user?.branchId) {
+    const assigned = branches.find((branch) => branch.id === user.branchId)
+    if (assigned) return assigned.name
+  }
+  return branches.find((branch) => branch.code.toUpperCase() === 'MAIN')?.name ?? branches.find((branch) => branch.active)?.name ?? branches[0].name
+}
+
 function App() {
   const [authenticated, setAuthenticated] = useState(() => Boolean(localStorage.getItem('dentahub_token')))
   const [permissions, setPermissions] = useState<string[]>(readStoredPermissions)
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(readStoredUser)
+  const [branding, setBranding] = useState<Branding>(defaultBranding)
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [collapsed, setCollapsed] = useState(false)
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('dentahub_theme') === 'dark')
@@ -118,10 +145,38 @@ function App() {
     localStorage.setItem('dentahub_theme', darkMode ? 'dark' : 'light')
   }, [darkMode])
 
+  useEffect(() => {
+    const applySettings = (settings: Partial<ClinicSettings>) => {
+      const clinicName = clinicLabel(settings.clinicName)
+      setBranding((current) => ({ ...current, clinicName, logoDataUrl: settings.logoDataUrl ?? '' }))
+      localStorage.setItem('dentahub_clinic_name', clinicName)
+      const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
+      if (favicon) favicon.href = settings.logoDataUrl || '/favicon.svg'
+    }
+    const updateSettings = (event?: Event) => {
+      const detail = (event as CustomEvent<Partial<ClinicSettings>> | undefined)?.detail
+      if (detail) applySettings(detail)
+      else apiGet<ClinicSettings>('/api/settings').then(applySettings).catch(() => undefined)
+    }
+    updateSettings()
+    window.addEventListener('dentahub:settings-updated', updateSettings)
+    return () => window.removeEventListener('dentahub:settings-updated', updateSettings)
+  }, [])
+
+  useEffect(() => {
+    if (!authenticated) {
+      setBranding((current) => ({ ...current, branchName: defaultBranding.branchName }))
+      return
+    }
+    apiGet<Branch[]>('/api/branches')
+      .then((branches) => setBranding((current) => ({ ...current, branchName: resolveBranchName(currentUser, branches) })))
+      .catch(() => setBranding((current) => ({ ...current, branchName: currentUser?.branchScoped ? 'Assigned branch' : defaultBranding.branchName })))
+  }, [authenticated, currentUser])
+
   if (!authenticated) {
     return (
       <Routes>
-        <Route path="/login" element={<LoginPage onLogin={() => { setPermissions(readStoredPermissions()); setAuthenticated(true) }} />} />
+        <Route path="/login" element={<LoginPage branding={branding} onLogin={() => { setPermissions(readStoredPermissions()); setCurrentUser(readStoredUser()); setAuthenticated(true) }} />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
     )
@@ -132,6 +187,7 @@ function App() {
     localStorage.removeItem('dentahub_user')
     localStorage.removeItem('dentahub_permissions')
     setPermissions([])
+    setCurrentUser(null)
     setAuthenticated(false)
   }
 
@@ -140,9 +196,9 @@ function App() {
 
   return (
     <div className="min-h-screen bg-cream text-ink">
-      <Sidebar open={sidebarOpen} collapsed={collapsed} permissions={permissions} onClose={() => setSidebarOpen(false)} onLogout={logout} />
+      <Sidebar open={sidebarOpen} collapsed={collapsed} permissions={permissions} branding={branding} onClose={() => setSidebarOpen(false)} onLogout={logout} />
       <main className={`min-h-screen transition-all duration-300 ${collapsed ? 'lg:pl-[88px]' : 'lg:pl-[260px]'}`}>
-        <Header permissions={permissions} darkMode={darkMode} onMenu={() => setSidebarOpen(true)} onToggleTheme={() => setDarkMode((value) => !value)} />
+        <Header permissions={permissions} branding={branding} darkMode={darkMode} onMenu={() => setSidebarOpen(true)} onToggleTheme={() => setDarkMode((value) => !value)} onLogout={logout} />
         <div className="mx-auto max-w-[1600px] px-4 pb-10 sm:px-6 lg:px-10">
           <Routes>
             <Route path="/" element={can('dashboard') ? <Dashboard permissions={permissions} /> : firstAllowedPath !== '/' ? <Navigate to={firstAllowedPath} replace /> : <AccessDenied />} />
@@ -176,17 +232,17 @@ function App() {
   )
 }
 
-function Sidebar({ open, collapsed, permissions, onClose, onLogout }: { open: boolean; collapsed: boolean; permissions: string[]; onClose: () => void; onLogout: () => void }) {
+function Sidebar({ open, collapsed, permissions, branding, onClose, onLogout }: { open: boolean; collapsed: boolean; permissions: string[]; branding: Branding; onClose: () => void; onLogout: () => void }) {
   return (
     <>
       {open && <button aria-label="Close navigation" onClick={onClose} className="fixed inset-0 z-40 bg-ink/30 lg:hidden" />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-white shadow-xl transition-transform duration-300 lg:translate-x-0 lg:shadow-none ${open ? 'translate-x-0' : '-translate-x-full'} ${collapsed ? 'lg:w-[88px]' : ''}`}>
         <div className={`flex h-[88px] items-center border-b border-slate-100 px-6 ${collapsed ? 'lg:justify-center lg:px-0' : 'justify-between'}`}>
           <NavLink to="/" onClick={onClose} className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-600 text-white shadow-lg shadow-teal-600/20"><Stethoscope size={21} /></span>
+            <span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-teal-600 text-white shadow-lg shadow-teal-600/20">{branding.logoDataUrl ? <img src={branding.logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={21} />}</span>
             <span className={`${collapsed ? 'lg:hidden' : ''}`}>
-              <span className="heading-font block text-[19px] font-extrabold tracking-tight text-ink">Denta<span className="text-teal-600">Hub</span></span>
-              <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">Care, made simple</span>
+              <span className="heading-font block max-w-[170px] truncate text-[19px] font-extrabold tracking-tight text-ink">{branding.clinicName}</span>
+              <span className="mt-0.5 block max-w-[170px] truncate text-[10px] font-semibold uppercase tracking-[0.18em] text-muted">{branding.branchName}</span>
             </span>
           </NavLink>
           <button onClick={onClose} aria-label="Close navigation" className="rounded-lg p-2 text-muted hover:bg-teal-50 hover:text-teal-700 lg:hidden"><X size={19} /></button>
@@ -204,13 +260,7 @@ function Sidebar({ open, collapsed, permissions, onClose, onLogout }: { open: bo
             <LogOut size={18} strokeWidth={2} />
             <span className={collapsed ? 'lg:hidden' : ''}>Sign out</span>
           </button>
-        </div>
-        <div className={`m-3 rounded-2xl bg-teal-50 p-3 ${collapsed ? 'lg:hidden' : ''}`}>
-          <div className="flex items-center gap-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-white text-teal-600"><AlarmClock size={17} /></div>
-            <div><p className="text-xs font-bold text-teal-700">Need help?</p><p className="text-[11px] text-teal-600/70">Talk to support</p></div>
-          </div>
-        </div>
+        </div>       
       </aside>
     </>
   )
@@ -221,7 +271,7 @@ function SidebarLink({ item, collapsed, onClose }: { item: MenuItem; collapsed: 
   return <NavLink to={item.path} onClick={onClose} title={collapsed ? item.label : undefined} className={({ isActive }) => `group flex items-center gap-3 rounded-xl px-3 py-2.5 text-[13px] font-semibold transition ${collapsed ? 'lg:justify-center' : ''} ${isActive ? 'bg-teal-50 text-teal-700' : 'text-slate-500 hover:bg-slate-50 hover:text-ink'}`}><Icon size={18} strokeWidth={2} /><span className={collapsed ? 'lg:hidden' : ''}>{item.label}</span></NavLink>
 }
 
-function Header({ permissions, darkMode, onMenu, onToggleTheme }: { permissions: string[]; darkMode: boolean; onMenu: () => void; onToggleTheme: () => void }) {
+function Header({ permissions, branding, darkMode, onMenu, onToggleTheme, onLogout }: { permissions: string[]; branding: Branding; darkMode: boolean; onMenu: () => void; onToggleTheme: () => void; onLogout: () => void }) {
   const location = useLocation()
   const navigate = useNavigate()
   const current = [...navigation, ...utilityNavigation].find((item) => item.path === location.pathname)
@@ -229,7 +279,6 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme }: { permissions:
   const [searchOpen, setSearchOpen] = useState(false)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
-  const [logoDataUrl, setLogoDataUrl] = useState('')
   const [profile] = useState<{ name?: string; role?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') } catch { return null }
   })
@@ -245,27 +294,12 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme }: { permissions:
     setSearchQuery('')
     setSearchOpen(false)
   }
-  useEffect(() => {
-    const updateLogo = (event?: Event) => {
-      const detail = (event as CustomEvent<{ logoDataUrl?: string }> | undefined)?.detail
-      const applyLogo = (value: string) => {
-        setLogoDataUrl(value)
-        const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
-        if (favicon) favicon.href = value || '/favicon.svg'
-      }
-      if (detail?.logoDataUrl !== undefined) applyLogo(detail.logoDataUrl ?? '')
-      else apiGet<{ logoDataUrl?: string }>('/api/settings').then((settings) => applyLogo(settings.logoDataUrl ?? '')).catch(() => undefined)
-    }
-    updateLogo()
-    window.addEventListener('dentahub:settings-updated', updateLogo)
-    return () => window.removeEventListener('dentahub:settings-updated', updateLogo)
-  }, [])
   return <>
     <header className="app-toolbar flex h-[88px] items-center justify-between gap-4 border-b border-slate-100 bg-cream/90 px-4 backdrop-blur sm:px-6 lg:px-10">
       <div className="flex items-center gap-3"><button onClick={onMenu} aria-label="Open navigation" className="rounded-xl border border-slate-200 bg-white p-2.5 text-muted lg:hidden"><Menu size={19} /></button><div><p className="text-xs font-medium text-muted">Pages / <span className="text-teal-700">{current?.label ?? 'Dashboard'}</span></p><h1 className="heading-font mt-1 text-xl font-extrabold text-ink sm:text-2xl">{current?.label ?? 'Dashboard'}</h1></div></div>
       <div className="flex items-center gap-2 sm:gap-4">
         <div className="hidden h-10 w-10 items-center justify-center overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm sm:flex" title="Clinic logo">
-          {logoDataUrl ? <img src={logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={18} className="text-teal-600" />}
+          {branding.logoDataUrl ? <img src={branding.logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={18} className="text-teal-600" />}
         </div>
         <div className="toolbar-search relative hidden items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-muted shadow-sm md:flex">
           <Search size={16} />
@@ -293,6 +327,7 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme }: { permissions:
           <button type="button" aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen((value) => !value)} className="toolbar-profile flex items-center gap-2 rounded-xl p-1.5 transition"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-100 text-sm font-bold text-teal-700">{initials || 'U'}</div><span className="hidden text-left sm:block"><span className="block text-xs font-bold text-ink">{profileName}</span><span className="block text-[10px] text-muted">{profileRole}</span></span><ChevronDown size={15} className="hidden text-muted sm:block" /></button>
           {profileMenuOpen && <div className="toolbar-dropdown absolute right-0 top-[calc(100%+10px)] z-50 w-52 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
             <button type="button" onClick={() => { setProfileMenuOpen(false); setChangePasswordOpen(true) }} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-ink transition hover:bg-teal-50 hover:text-teal-700"><LockKeyhole size={16} className="text-muted" />Change password</button>
+            <button type="button" onClick={() => { setProfileMenuOpen(false); onLogout() }} className="mt-1 flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-xs font-bold text-rose-600 transition hover:bg-rose-50"><LogOut size={16} />Sign out</button>
           </div>}
         </div>
       </div>
@@ -355,7 +390,7 @@ function PasswordField({ label, value, onChange, autoComplete }: { label: string
   return <label className="block"><span className="mb-1.5 block text-xs font-bold text-ink">{label}</span><span className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><LockKeyhole size={15} className="text-muted" /><input required type="password" autoComplete={autoComplete} value={value} onChange={(event) => onChange(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" /></span></label>
 }
 
-function LoginPage({ onLogin }: { onLogin: () => void }) {
+function LoginPage({ branding, onLogin }: { branding: Branding; onLogin: () => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -394,8 +429,8 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
     <div className="flex min-h-screen bg-white">
       <section className="relative hidden w-[45%] overflow-hidden bg-gradient-to-br from-[#087f8c] via-[#0c9098] to-[#46b7ac] p-12 text-white lg:flex lg:flex-col lg:justify-between">
         <div className="relative z-10 flex items-center gap-3">
-          <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-white/15"><Stethoscope size={23} /></span>
-          <div><p className="heading-font text-xl font-extrabold">Denta<span className="text-teal-100">Hub</span></p><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-50/70">Care, made simple</p></div>
+          <span className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-2xl bg-white/15">{branding.logoDataUrl ? <img src={branding.logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={23} />}</span>
+          <div><p className="heading-font max-w-[260px] truncate text-xl font-extrabold">{branding.clinicName}</p><p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-teal-50/70">Clinic workspace</p></div>
         </div>
         <div className="relative z-10 max-w-md pb-10"><p className="mb-4 text-sm font-semibold uppercase tracking-[0.16em] text-teal-50/70">Your clinic, connected</p><h1 className="heading-font text-4xl font-extrabold leading-tight">Make every patient visit feel effortless.</h1><p className="mt-5 text-sm leading-7 text-teal-50/80">Manage your patients, appointments, clinical notes, treatments, and payments from one calm workspace.</p></div>
         <div className="absolute -right-28 -top-28 h-96 w-96 rounded-full border-[50px] border-white/10" />
@@ -404,13 +439,13 @@ function LoginPage({ onLogin }: { onLogin: () => void }) {
       </section>
       <section className="flex flex-1 items-center justify-center bg-cream px-5 py-10 sm:px-10">
         <div className="w-full max-w-[420px]">
-          <div className="mb-8 lg:hidden"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-2xl bg-teal-600 text-white"><Stethoscope size={20} /></span><span className="heading-font text-xl font-extrabold text-ink">Denta<span className="text-teal-600">Hub</span></span></div></div>
+          <div className="mb-8 lg:hidden"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-teal-600 text-white">{branding.logoDataUrl ? <img src={branding.logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={20} />}</span><span className="heading-font max-w-[260px] truncate text-xl font-extrabold text-ink">{branding.clinicName}</span></div></div>
           <div className="mb-8"><span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-600"><LockKeyhole size={22} /></span><h2 className="heading-font text-2xl font-extrabold text-ink sm:text-3xl">Welcome back</h2><p className="mt-2 text-sm text-muted">Sign in to continue to your clinic workspace.</p></div>
           <form onSubmit={handleSubmit} className="space-y-5">
             <label className="block"><span className="mb-2 block text-xs font-bold text-ink">Email address</span><span className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 transition focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><Mail size={17} className="text-muted" /><input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-slate-400" placeholder="you@clinic.com" /></span></label>
             <label className="block"><span className="mb-2 block text-xs font-bold text-ink">Password</span><span className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 transition focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><LockKeyhole size={17} className="text-muted" /><input type={showPassword ? 'text' : 'password'} required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-slate-400" placeholder="Enter your password" /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((value) => !value)} className="text-xs font-bold text-muted hover:text-teal-700">{showPassword ? 'Hide' : 'Show'}</button></span></label>
             {error && <p className="rounded-xl bg-rose-50 px-3.5 py-3 text-xs font-semibold text-rose-600">{error}</p>}
-            <button type="submit" disabled={submitting} className="flex w-full items-center justify-center rounded-xl bg-teal-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-600/20 transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Signing in...' : 'Sign in to DentaHub'}<span className="ml-2">→</span></button>
+            <button type="submit" disabled={submitting} className="flex w-full items-center justify-center rounded-xl bg-teal-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-600/20 transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Signing in...' : `Sign in to ${branding.clinicName}`}<span className="ml-2">→</span></button>
           </form>
           <p className="mt-8 text-center text-xs text-muted">Need access? Contact your clinic administrator.</p>
         </div>

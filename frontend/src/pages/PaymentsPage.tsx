@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { CreditCard, IndianRupee, Plus, Receipt, Search, Trash2, UserRound, X } from 'lucide-react'
+import { CreditCard, IndianRupee, Plus, Printer, Receipt, Search, Trash2, UserRound, X } from 'lucide-react'
 import { apiDelete, apiGet, apiPost, BillingInvoice, Payment } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/PageStates'
 
@@ -16,6 +16,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [form, setForm] = useState<PaymentForm>(emptyForm())
+  const [printingPayment, setPrintingPayment] = useState<Payment | null>(null)
   const [formOpen, setFormOpen] = useState(false)
   const [saving, setSaving] = useState(false)
 
@@ -35,6 +36,10 @@ export default function PaymentsPage() {
   const openCreate = () => { setForm(emptyForm()); setFormOpen(true); setError('') }
   const closeForm = () => { setFormOpen(false); setForm(emptyForm()) }
   const selectInvoice = (invoiceId: string) => { const invoice = invoices.find((item) => String(item.id) === invoiceId); setForm({ ...form, invoiceId, amount: invoice ? String(invoice.balance) : '' }) }
+  const printPayment = (payment: Payment) => {
+    setPrintingPayment(payment)
+    window.setTimeout(() => window.print(), 0)
+  }
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -63,7 +68,8 @@ export default function PaymentsPage() {
     <div className="grid gap-4 sm:grid-cols-3"><SummaryCard label="Total received" value={money(totals.received)} caption="All recorded payments" icon={IndianRupee} tone="teal" /><SummaryCard label="Payment entries" value={String(totals.count)} caption="Receipts in this workspace" icon={Receipt} tone="blue" /><SummaryCard label="Via UPI" value={money(totals.upi)} caption="Digital collections" icon={CreditCard} tone="violet" /></div>
     <div className="rounded-2xl border border-slate-100 bg-white p-3 shadow-soft"><div className="flex max-w-md items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-2.5 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><Search size={17} className="text-muted" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search receipt, invoice or patient" /></div></div>
     {error && !formOpen && <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-600">{error}</p>}
-    {loading ? <LoadingState /> : error && payments.length === 0 ? <ErrorState message={error} onRetry={load} /> : visible.length === 0 ? <EmptyState title="No payments found" description="Record a payment from an invoice to see collection history here." /> : <PaymentTable payments={visible} onDelete={remove} />}
+    {loading ? <LoadingState /> : error && payments.length === 0 ? <ErrorState message={error} onRetry={load} /> : visible.length === 0 ? <EmptyState title="No payments found" description="Record a payment from an invoice to see collection history here." /> : <PaymentTable payments={visible} onDelete={remove} onPrint={printPayment} />}
+    {printingPayment && <ReceiptPrint payment={printingPayment} />}
     {formOpen && <PaymentModal form={form} setForm={setForm} invoices={invoices} selectInvoice={selectInvoice} saving={saving} error={error} onClose={closeForm} onSave={save} />}
   </div>
 }
@@ -73,8 +79,23 @@ function SummaryCard({ label, value, caption, icon: Icon, tone }: { label: strin
   return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-muted">{label}</p><p className="heading-font mt-2 text-xl font-extrabold tracking-tight text-ink">{value}</p></div><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${colors[tone]}`}><Icon size={19} /></span></div><p className="mt-5 text-[11px] text-muted">{caption}</p></div>
 }
 
-function PaymentTable({ payments, onDelete }: { payments: Payment[]; onDelete: (payment: Payment) => void }) {
-  return <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-soft"><div className="overflow-x-auto"><table className="min-w-[820px] w-full text-left"><thead><tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400"><th className="px-5 py-4">Receipt</th><th className="px-5 py-4">Patient</th><th className="px-5 py-4">Invoice</th><th className="px-5 py-4">Date</th><th className="px-5 py-4">Method</th><th className="px-5 py-4 text-right">Amount</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{payments.map((payment) => <tr key={payment.id} className="text-sm transition hover:bg-slate-50/60"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Receipt size={17} /></span><div><p className="font-bold text-ink">{payment.receiptNumber}</p>{payment.reference && <p className="mt-0.5 text-[11px] text-muted">Ref: {payment.reference}</p>}</div></div></td><td className="px-5 py-4"><p className="flex items-center gap-2 text-xs font-semibold text-ink"><UserRound size={13} className="text-muted" />{payment.patientName}</p></td><td className="px-5 py-4 text-xs font-semibold text-teal-700">{payment.invoiceNumber}</td><td className="px-5 py-4 text-xs text-muted">{dateLabel(payment.paymentDate)}</td><td className="px-5 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600">{payment.method.replace('_', ' ')}</span></td><td className="px-5 py-4 text-right text-sm font-extrabold text-emerald-600">{money(payment.amount)}</td><td className="px-5 py-4"><div className="flex justify-end"><button onClick={() => onDelete(payment)} aria-label={`Delete ${payment.receiptNumber}`} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody></table></div></div>
+function PaymentTable({ payments, onDelete, onPrint }: { payments: Payment[]; onDelete: (payment: Payment) => void; onPrint: (payment: Payment) => void }) {
+  return <div className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-soft"><div className="overflow-x-auto"><table className="min-w-[820px] w-full text-left"><thead><tr className="border-b border-slate-100 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-400"><th className="px-5 py-4">Receipt</th><th className="px-5 py-4">Patient</th><th className="px-5 py-4">Invoice</th><th className="px-5 py-4">Date</th><th className="px-5 py-4">Method</th><th className="px-5 py-4 text-right">Amount</th><th className="px-5 py-4 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{payments.map((payment) => <tr key={payment.id} className="text-sm transition hover:bg-slate-50/60"><td className="px-5 py-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600"><Receipt size={17} /></span><div><p className="font-bold text-ink">{payment.receiptNumber}</p>{payment.reference && <p className="mt-0.5 text-[11px] text-muted">Ref: {payment.reference}</p>}</div></div></td><td className="px-5 py-4"><p className="flex items-center gap-2 text-xs font-semibold text-ink"><UserRound size={13} className="text-muted" />{payment.patientName}</p></td><td className="px-5 py-4 text-xs font-semibold text-teal-700">{payment.invoiceNumber}</td><td className="px-5 py-4 text-xs text-muted">{dateLabel(payment.paymentDate)}</td><td className="px-5 py-4"><span className="rounded-md bg-slate-100 px-2 py-1 text-[10px] font-bold text-slate-600">{payment.method.replace('_', ' ')}</span></td><td className="px-5 py-4 text-right text-sm font-extrabold text-emerald-600">{money(payment.amount)}</td><td className="px-5 py-4"><div className="flex justify-end gap-2"><button onClick={() => onPrint(payment)} aria-label={`Print ${payment.receiptNumber}`} className="rounded-lg p-2 text-slate-400 hover:bg-blue-50 hover:text-blue-600"><Printer size={15} /></button><button onClick={() => onDelete(payment)} aria-label={`Delete ${payment.receiptNumber}`} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600"><Trash2 size={15} /></button></div></td></tr>)}</tbody></table></div></div>
+}
+
+function ReceiptPrint({ payment }: { payment: Payment }) {
+  const generatedAt = new Date().toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+  const clinicName = localStorage.getItem('dentahub_clinic_name') || 'Clinic'
+  return <section className="print-area hidden">
+    <div className="print-report">
+      <div className="print-header">
+        <div><p className="print-kicker">{clinicName}</p><h1>Receipt</h1><p>Generated {generatedAt}</p></div>
+        <div className="print-meta"><p>{payment.receiptNumber}</p><p>{payment.invoiceNumber}</p></div>
+      </div>
+      <div className="print-summary"><div><span>Patient</span><strong>{payment.patientName}</strong></div><div><span>Payment date</span><strong>{dateLabel(payment.paymentDate)}</strong></div><div><span>Amount paid</span><strong>{money(payment.amount)}</strong></div></div>
+      <table className="print-table"><tbody><tr><th>Receipt number</th><td>{payment.receiptNumber}</td></tr><tr><th>Invoice number</th><td>{payment.invoiceNumber}</td></tr><tr><th>Payment method</th><td>{payment.method.replace('_', ' ')}</td></tr><tr><th>Reference</th><td>{payment.reference || '-'}</td></tr>{payment.notes && <tr><th>Notes</th><td>{payment.notes}</td></tr>}</tbody></table>
+    </div>
+  </section>
 }
 
 function PaymentModal({ form, setForm, invoices, selectInvoice, saving, error, onClose, onSave }: { form: PaymentForm; setForm: (form: PaymentForm) => void; invoices: BillingInvoice[]; selectInvoice: (value: string) => void; saving: boolean; error: string; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {
