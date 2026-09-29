@@ -7,12 +7,13 @@ import DentalChartPage from './pages/DentalChartPage'
 import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
+import PatientProfilePage from './pages/PatientProfilePage'
 import PaymentsPage from './pages/PaymentsPage'
 import SettingsPage from './pages/SettingsPage'
 import TreatmentPlansPage from './pages/TreatmentPlansPage'
 import TreatmentsPage from './pages/TreatmentsPage'
 import UsersRolesPage from './pages/UsersRolesPage'
-import { apiGet, apiPost, AuthUser, Branch, ClinicSettings, Patient } from './api'
+import { apiGet, apiPost, AuthUser, Branch, ClinicSettings, GlobalSearchResult } from './api'
 import { ALL_PERMISSION_KEYS } from './permissions'
 import {
   Activity,
@@ -205,6 +206,7 @@ function App() {
             <Route path="/" element={can('dashboard') ? <Dashboard permissions={permissions} /> : firstAllowedPath !== '/' ? <Navigate to={firstAllowedPath} replace /> : <AccessDenied />} />
             <Route path="/login" element={<Navigate to="/" replace />} />
             <Route path="/patients" element={can('patients') ? <PatientsPage /> : <Navigate to={firstAllowedPath} replace />} />
+            <Route path="/patients/:id" element={can('patients') ? <PatientProfilePage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/appointments" element={can('appointments') ? <AppointmentsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/doctors" element={can('doctors') ? <DoctorsPage /> : <Navigate to={firstAllowedPath} replace />} />
             <Route path="/consultation" element={can('consultation') ? <ConsultationPage /> : <Navigate to={firstAllowedPath} replace />} />
@@ -282,7 +284,7 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme, onLogout }: { pe
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [changePasswordOpen, setChangePasswordOpen] = useState(false)
   const profileMenuRef = useRef<HTMLDivElement>(null)
-  const [patientResults, setPatientResults] = useState<Patient[]>([])
+  const [globalResults, setGlobalResults] = useState<GlobalSearchResult[]>([])
   const [profile] = useState<{ name?: string; role?: string } | null>(() => {
     try { return JSON.parse(localStorage.getItem('dentahub_user') ?? 'null') } catch { return null }
   })
@@ -295,11 +297,11 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme, onLogout }: { pe
     : []
   useEffect(() => {
     const query = searchQuery.trim()
-    if (!query) { setPatientResults([]); return }
+    if (!query) { setGlobalResults([]); return }
     const timer = window.setTimeout(() => {
-      apiGet<Patient[]>(`/api/patients?q=${encodeURIComponent(query)}`)
-        .then((patients) => setPatientResults(patients.slice(0, 5)))
-        .catch(() => setPatientResults([]))
+      apiGet<GlobalSearchResult[]>(`/api/search?q=${encodeURIComponent(query)}`)
+        .then((results) => setGlobalResults(results))
+        .catch(() => setGlobalResults([]))
     }, 250)
     return () => window.clearTimeout(timer)
   }, [searchQuery])
@@ -321,8 +323,8 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme, onLogout }: { pe
     setSearchQuery('')
     setSearchOpen(false)
   }
-  const goToPatientResult = (patient: Patient) => {
-    navigate(`/patients?q=${encodeURIComponent(patient.phone || patient.fullName)}`)
+  const goToGlobalResult = (result: GlobalSearchResult) => {
+    navigate(result.path)
     setSearchQuery('')
     setSearchOpen(false)
   }
@@ -346,8 +348,8 @@ function Header({ permissions, darkMode, onMenu, onToggleTheme, onLogout }: { pe
           />
           {searchOpen && searchQuery.trim() && <div className="toolbar-search-results absolute left-0 top-[calc(100%+10px)] z-50 w-72 rounded-2xl border border-slate-100 bg-white p-2 shadow-xl">
             {searchResults.map(({ label, path, icon: Icon }) => <button key={path} type="button" onClick={() => goToSearchResult(path)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-teal-50 hover:text-teal-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-teal-50 text-teal-600"><Icon size={15} /></span><span><span className="block text-xs font-bold text-ink">{label}</span><span className="block text-[10px] text-muted">Open section</span></span></button>)}
-            {patientResults.length > 0 && <><p className="px-3 pb-1 pt-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">Patients</p>{patientResults.map((patient) => <button key={patient.id} type="button" onClick={() => goToPatientResult(patient)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-teal-50 hover:text-teal-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><UserRound size={15} /></span><span className="min-w-0"><span className="block truncate text-xs font-bold text-ink">{patient.fullName}</span><span className="block truncate text-[10px] text-muted">{patient.phone}</span></span></button>)}</>}
-            {searchResults.length === 0 && patientResults.length === 0 && <p className="px-3 py-3 text-xs font-semibold text-muted">No matching pages or patients found.</p>}
+            {globalResults.length > 0 && <><p className="px-3 pb-1 pt-2 text-[10px] font-extrabold uppercase tracking-[0.14em] text-muted">Records</p>{globalResults.map((result) => <button key={`${result.type}-${result.id}`} type="button" onClick={() => goToGlobalResult(result)} className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition hover:bg-teal-50 hover:text-teal-700"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-600"><UserRound size={15} /></span><span className="min-w-0"><span className="block truncate text-xs font-bold text-ink">{result.title}</span><span className="block truncate text-[10px] text-muted">{result.type.toLowerCase()} · {result.subtitle}</span></span></button>)}</>}
+            {searchResults.length === 0 && globalResults.length === 0 && <p className="px-3 py-3 text-xs font-semibold text-muted">No matching pages or records found.</p>}
           </div>}
         </div>
         <button type="button" aria-label={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} title={darkMode ? 'Switch to light theme' : 'Switch to dark theme'} aria-pressed={darkMode} onClick={onToggleTheme} className="toolbar-action rounded-xl border border-slate-200 bg-white p-2.5 text-muted shadow-sm transition hover:text-teal-700">

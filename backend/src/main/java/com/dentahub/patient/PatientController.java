@@ -44,8 +44,18 @@ public class PatientController {
         return patients.stream().filter(patient -> accessService.canAccess(authorization, patient.getBranchId())).map(PatientController::toResponse).toList();
     }
 
+    @GetMapping("/{id}")
+    public ResponseEntity<PatientResponse> get(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization) {
+        return repository.findById(id).filter(patient -> accessService.canAccess(authorization, patient.getBranchId()))
+                .map(patient -> ResponseEntity.ok(toResponse(patient))).orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
     @PostMapping
     public PatientResponse create(@RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody PatientRequest request) {
+        List<Patient> duplicates = findDuplicates(request, authorization, null);
+        if (!duplicates.isEmpty()) {
+            throw new DuplicatePatientException(duplicates.stream().map(PatientController::toResponse).toList());
+        }
         Patient patient = new Patient();
         apply(patient, request);
         patient.setBranchId(accessService.scopedBranch(authorization).orElse(request.branchId()));
@@ -54,6 +64,10 @@ public class PatientController {
 
     @PutMapping("/{id}")
     public ResponseEntity<PatientResponse> update(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization, @Valid @RequestBody PatientRequest request) {
+        List<Patient> duplicates = findDuplicates(request, authorization, id);
+        if (!duplicates.isEmpty()) {
+            throw new DuplicatePatientException(duplicates.stream().map(PatientController::toResponse).toList());
+        }
         return repository.findById(id)
                 .filter(patient -> accessService.canAccess(authorization, patient.getBranchId()))
                 .map(patient -> {
@@ -62,6 +76,24 @@ public class PatientController {
                     return ResponseEntity.ok(toResponse(repository.save(patient)));
                 })
                 .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    private List<Patient> findDuplicates(PatientRequest request, String authorization, Long ignoredId) {
+        String name = request.fullName().trim();
+        String phone = normalizePhone(request.phone());
+        String email = request.email() == null ? "" : request.email().trim().toLowerCase();
+        return repository.findAll().stream()
+                .filter(patient -> ignoredId == null || !patient.getId().equals(ignoredId))
+                .filter(patient -> accessService.canAccess(authorization, patient.getBranchId()))
+                .filter(patient -> normalizePhone(patient.getPhone()).equals(phone)
+                        || (!email.isBlank() && email.equalsIgnoreCase(patient.getEmail() == null ? "" : patient.getEmail()))
+                        || (patient.getFullName().equalsIgnoreCase(name) && request.dateOfBirth() != null
+                                && request.dateOfBirth().equals(patient.getDateOfBirth())))
+                .toList();
+    }
+
+    private static String normalizePhone(String value) {
+        return value == null ? "" : value.replaceAll("\\D", "");
     }
 
     @DeleteMapping("/{id}")
@@ -82,6 +114,9 @@ public class PatientController {
         patient.setAddress(blankToNull(request.address()));
         patient.setEmergencyContact(blankToNull(request.emergencyContact()));
         patient.setMedicalNotes(blankToNull(request.medicalNotes()));
+        patient.setAllergies(blankToNull(request.allergies()));
+        patient.setMedications(blankToNull(request.medications()));
+        patient.setMedicalHistory(blankToNull(request.medicalHistory()));
         patient.setStatus(request.status() == null || request.status().isBlank() ? "ACTIVE" : request.status().toUpperCase());
     }
 
@@ -92,7 +127,7 @@ public class PatientController {
     private static PatientResponse toResponse(Patient patient) {
         return new PatientResponse(patient.getId(), patient.getFullName(), patient.getPhone(), patient.getEmail(),
                 patient.getDateOfBirth(), patient.getGender(), patient.getAddress(), patient.getEmergencyContact(),
-                patient.getMedicalNotes(), patient.getBranchId(), patient.getStatus());
+                patient.getMedicalNotes(), patient.getAllergies(), patient.getMedications(), patient.getMedicalHistory(), patient.getBranchId(), patient.getStatus());
     }
 
     public record PatientRequest(
@@ -105,6 +140,9 @@ public class PatientController {
             String address,
             String emergencyContact,
             String medicalNotes,
+            String allergies,
+            String medications,
+            String medicalHistory,
             String status) {
     }
 
@@ -118,7 +156,21 @@ public class PatientController {
             String address,
             String emergencyContact,
             String medicalNotes,
+            String allergies,
+            String medications,
+            String medicalHistory,
             Long branchId,
             String status) {
+    }
+
+    public static class DuplicatePatientException extends RuntimeException {
+        private final List<PatientResponse> duplicates;
+
+        public DuplicatePatientException(List<PatientResponse> duplicates) {
+            super("A patient with the same phone, email, or name and date of birth already exists");
+            this.duplicates = duplicates;
+        }
+
+        public List<PatientResponse> getDuplicates() { return duplicates; }
     }
 }

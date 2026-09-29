@@ -1,6 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, CheckCircle2, FileText, Pencil, Plus, Printer, Receipt, Search, Trash2, UserRound, X } from 'lucide-react'
-import { apiDelete, apiGet, apiPost, apiPut, BillingInvoice, Patient, TreatmentPlan } from '../api'
+import { apiDelete, apiGet, apiPost, apiPut, BillingInvoice, Branch, Patient, TreatmentPlan } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/PageStates'
 import AutocompleteField from '../components/AutocompleteField'
 import { patientOption } from '../components/patientOptions'
@@ -31,8 +31,15 @@ export default function BillingPage() {
   const [invoices, setInvoices] = useState<BillingInvoice[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [plans, setPlans] = useState<TreatmentPlan[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
   const [query, setQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [branchFilter, setBranchFilter] = useState('ALL')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [sort, setSort] = useState<'date' | 'amount'>('date')
+  const [page, setPage] = useState(1)
+  const pageSize = 10
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [form, setForm] = useState<InvoiceForm>(emptyForm())
@@ -44,18 +51,21 @@ export default function BillingPage() {
   const load = () => {
     setLoading(true)
     setError('')
-    Promise.all([apiGet<BillingInvoice[]>('/api/billing/invoices'), apiGet<Patient[]>('/api/patients'), apiGet<TreatmentPlan[]>('/api/treatment-plans')])
-      .then(([invoiceData, patientData, planData]) => { setInvoices(invoiceData); setPatients(patientData); setPlans(planData) })
+    Promise.all([apiGet<BillingInvoice[]>('/api/billing/invoices'), apiGet<Patient[]>('/api/patients'), apiGet<TreatmentPlan[]>('/api/treatment-plans'), apiGet<Branch[]>('/api/branches')])
+      .then(([invoiceData, patientData, planData, branchData]) => { setInvoices(invoiceData); setPatients(patientData); setPlans(planData); setBranches(branchData) })
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'Unable to load invoices'))
       .finally(() => setLoading(false))
   }
 
   useEffect(() => { load() }, [])
 
-  const visible = useMemo(() => invoices.filter((invoice) => {
+  const filtered = useMemo(() => invoices.filter((invoice) => {
     const matchesQuery = `${invoice.invoiceNumber} ${invoice.patientName}`.toLowerCase().includes(query.toLowerCase())
-    return matchesQuery && (statusFilter === 'ALL' || invoice.status === statusFilter)
-  }), [invoices, query, statusFilter])
+    return matchesQuery && (statusFilter === 'ALL' || invoice.status === statusFilter) && (branchFilter === 'ALL' || String(invoice.branchId) === branchFilter) && (!fromDate || invoice.issueDate >= fromDate) && (!toDate || invoice.issueDate <= toDate)
+  }), [invoices, query, statusFilter, branchFilter, fromDate, toDate])
+  const visible = useMemo(() => [...filtered].sort((a, b) => sort === 'amount' ? b.total - a.total : b.issueDate.localeCompare(a.issueDate)).slice((page - 1) * pageSize, page * pageSize), [filtered, sort, page])
+  const pageCount = Math.max(1, Math.ceil(filtered.length / pageSize))
+  useEffect(() => { setPage(1) }, [query, statusFilter, branchFilter, fromDate, toDate, sort])
 
   const totals = useMemo(() => {
     const today = new Date().toISOString().slice(0, 10)
@@ -113,13 +123,15 @@ export default function BillingPage() {
   return <div className="space-y-6 py-7">
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center"><div><p className="text-sm text-muted">Create invoices, track balances, and keep every patient account clear.</p></div><button onClick={openCreate} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700"><Plus size={16} /> Create invoice</button></div>
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4"><SummaryCard label="Total billed" value={money(totals.billed)} caption="Across active invoices" icon={FileText} tone="teal" /><SummaryCard label="Collected" value={money(totals.collected)} caption="Payments received" icon={CheckCircle2} tone="emerald" /><SummaryCard label="Outstanding" value={money(totals.outstanding)} caption="Open patient balances" icon={Receipt} tone="blue" /><SummaryCard label="Overdue" value={money(totals.overdue)} caption="Past their due date" icon={CalendarDays} tone="orange" /></div>
-    <div className="flex flex-col gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-soft sm:flex-row"><div className="flex flex-1 items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-2.5 focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><Search size={17} className="text-muted" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search invoice or patient" /></div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-ink outline-none"><option value="ALL">All statuses</option><option value="DRAFT">Draft</option><option value="ISSUED">Issued</option><option value="PARTIALLY_PAID">Partially paid</option><option value="PAID">Paid</option><option value="VOID">Void</option></select></div>
+    <div className="flex flex-wrap gap-3 rounded-2xl border border-slate-100 bg-white p-3 shadow-soft"><div className="flex min-w-[220px] flex-1 items-center gap-3 rounded-xl border border-slate-200 px-3.5 py-2.5"><Search size={17} className="text-muted" /><input value={query} onChange={(event) => setQuery(event.target.value)} className="w-full bg-transparent text-sm outline-none placeholder:text-slate-400" placeholder="Search invoice or patient" /></div><select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-ink outline-none"><option value="ALL">All statuses</option><option value="DRAFT">Draft</option><option value="ISSUED">Issued</option><option value="PARTIALLY_PAID">Partially paid</option><option value="PAID">Paid</option><option value="VOID">Void</option></select><select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-ink outline-none"><option value="ALL">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select><input type="date" value={fromDate} onChange={(event) => setFromDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><input type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} className="rounded-xl border border-slate-200 px-3 py-2 text-xs" /><select value={sort} onChange={(event) => setSort(event.target.value as 'date' | 'amount')} className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-ink outline-none"><option value="date">Newest first</option><option value="amount">Highest amount</option></select></div>
     {error && !formOpen && <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-600">{error}</p>}
-    {loading ? <LoadingState /> : error && invoices.length === 0 ? <ErrorState message={error} onRetry={load} /> : visible.length === 0 ? <EmptyState title="No invoices found" description="Create an invoice to start tracking a patient's bill and payments." /> : <InvoiceTable invoices={visible} onEdit={openEdit} onDelete={remove} onPrint={printInvoice} />}
+    {loading ? <LoadingState /> : error && invoices.length === 0 ? <ErrorState message={error} onRetry={load} /> : filtered.length === 0 ? <EmptyState title="No invoices found" description="Create an invoice to start tracking a patient's bill and payments." /> : <><InvoiceTable invoices={visible} onEdit={openEdit} onDelete={remove} onPrint={printInvoice} /><Pagination page={page} pageCount={pageCount} onChange={setPage} /></>}
     {printingInvoice && <InvoicePrint invoice={printingInvoice} />}
     {formOpen && <InvoiceModal editing={editing} form={form} setForm={setForm} patients={patients} plans={plans} choosePlan={choosePlan} updateLine={updateLine} saving={saving} error={error} onClose={closeForm} onSave={save} />}
   </div>
 }
+
+function Pagination({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (page: number) => void }) { return <div className="flex items-center justify-between rounded-2xl border border-slate-100 bg-white px-4 py-3 text-xs font-bold text-muted shadow-soft"><span>Page {page} of {pageCount}</span><div className="flex gap-2"><button disabled={page === 1} onClick={() => onChange(page - 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Previous</button><button disabled={page === pageCount} onClick={() => onChange(page + 1)} className="rounded-lg border px-3 py-1.5 disabled:opacity-40">Next</button></div></div> }
 
 function SummaryCard({ label, value, caption, icon: Icon, tone }: { label: string; value: string; caption: string; icon: typeof FileText; tone: 'teal' | 'emerald' | 'blue' | 'orange' }) {
   const colors = { teal: 'bg-teal-50 text-teal-600', emerald: 'bg-emerald-50 text-emerald-600', blue: 'bg-blue-50 text-blue-600', orange: 'bg-orange-50 text-orange-600' }

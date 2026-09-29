@@ -1,12 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react'
 import { CalendarDays, ChevronLeft, ChevronRight, Clock3, List, Pencil, Plus, Stethoscope, Trash2, UserRound, X } from 'lucide-react'
-import { apiDelete, apiGet, apiPost, apiPut, ApiRequestError, Appointment, AppointmentConflict, Doctor, Patient } from '../api'
+import { apiDelete, apiGet, apiPost, apiPut, ApiRequestError, Appointment, AppointmentConflict, Branch, Doctor, Patient } from '../api'
 import { EmptyState, ErrorState, LoadingState } from '../components/PageStates'
 import AutocompleteField from '../components/AutocompleteField'
 import { patientIdentity, patientOption } from '../components/patientOptions'
 
-type AppointmentForm = { patientId: string; doctorId: string; appointmentDate: string; startTime: string; endTime: string; appointmentType: string; status: string; notes: string }
-type AppointmentView = 'SCHEDULE' | 'LIST'
+type AppointmentForm = { patientId: string; doctorId: string; appointmentDate: string; startTime: string; endTime: string; appointmentType: string; status: string; notes: string; walkIn: boolean }
+type AppointmentView = 'SCHEDULE' | 'DOCTOR' | 'LIST'
 
 const statuses = ['ALL', 'SCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW']
 const appointmentTypes = ['Consultation', 'New patient consultation', 'Follow-up', 'Cleaning', 'Filling', 'Root canal', 'Extraction', 'Crown / Bridge', 'Orthodontic', 'Emergency', 'Other']
@@ -28,7 +28,7 @@ function shiftDate(dateKey: string, days: number) {
 }
 
 function emptyForm(date = localDateKey(new Date())): AppointmentForm {
-  return { patientId: '', doctorId: '', appointmentDate: date, startTime: '09:00', endTime: '09:30', appointmentType: '', status: 'SCHEDULED', notes: '' }
+  return { patientId: '', doctorId: '', appointmentDate: date, startTime: '09:00', endTime: '09:30', appointmentType: '', status: 'SCHEDULED', notes: '', walkIn: false }
 }
 
 function fromAppointment(appointment: Appointment): AppointmentForm {
@@ -45,6 +45,7 @@ function fromAppointment(appointment: Appointment): AppointmentForm {
     appointmentType: appointment.appointmentType,
     status: appointment.status,
     notes: appointment.notes ?? '',
+    walkIn: appointment.walkIn,
   }
 }
 
@@ -77,7 +78,10 @@ export default function AppointmentsPage() {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [patients, setPatients] = useState<Patient[]>([])
   const [doctors, setDoctors] = useState<Doctor[]>([])
+  const [branches, setBranches] = useState<Branch[]>([])
   const [statusFilter, setStatusFilter] = useState('ALL')
+  const [doctorFilter, setDoctorFilter] = useState('ALL')
+  const [branchFilter, setBranchFilter] = useState('ALL')
   const [selectedDate, setSelectedDate] = useState(localDateKey(new Date()))
   const [view, setView] = useState<AppointmentView>('SCHEDULE')
   const [loading, setLoading] = useState(true)
@@ -98,19 +102,19 @@ export default function AppointmentsPage() {
   }
 
   useEffect(() => {
-    Promise.all([apiGet<Patient[]>('/api/patients'), apiGet<Doctor[]>('/api/doctors')])
-      .then(([patientData, doctorData]) => { setPatients(patientData); setDoctors(doctorData) })
+    Promise.all([apiGet<Patient[]>('/api/patients'), apiGet<Doctor[]>('/api/doctors'), apiGet<Branch[]>('/api/branches')])
+      .then(([patientData, doctorData, branchData]) => { setPatients(patientData); setDoctors(doctorData); setBranches(branchData) })
       .catch((requestError) => setError(requestError instanceof Error ? requestError.message : 'Unable to load appointment references'))
   }, [])
   useEffect(() => { loadAppointments(selectedDate) }, [selectedDate])
 
-  const openCreate = () => { setEditing(null); setForm(emptyForm(selectedDate)); setFormOpen(true); setError('') }
+  const openCreate = (walkIn = false) => { setEditing(null); setForm({ ...emptyForm(selectedDate), walkIn, appointmentType: walkIn ? 'Walk-in' : '' }); setFormOpen(true); setError('') }
   const openEdit = (appointment: Appointment) => { setEditing(appointment); setSelectedDate(appointment.appointmentDateTime.slice(0, 10)); setForm(fromAppointment(appointment)); setFormOpen(true); setError('') }
   const closeForm = () => { setEditing(null); setFormOpen(false); setConfirmOpen(false); setConflict(null); setForm(emptyForm(selectedDate)) }
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get('action') === 'create') openCreate()
   }, [])
-  const filtered = statusFilter === 'ALL' ? appointments : appointments.filter((appointment) => appointment.status === statusFilter)
+  const filtered = appointments.filter((appointment) => (statusFilter === 'ALL' || appointment.status === statusFilter) && (doctorFilter === 'ALL' || String(appointment.doctorId) === doctorFilter) && (branchFilter === 'ALL' || String(doctors.find((doctor) => doctor.id === appointment.doctorId)?.branchId) === branchFilter))
   const selectedDayAppointments = useMemo(() => filtered.filter((appointment) => appointment.appointmentDateTime.slice(0, 10) === selectedDate).sort((a, b) => a.appointmentDateTime.localeCompare(b.appointmentDateTime)), [filtered, selectedDate])
 
   function requestSave(event: FormEvent<HTMLFormElement>) {
@@ -135,6 +139,7 @@ export default function AppointmentsPage() {
       status: form.status,
       notes: form.notes,
       overrideConflict,
+      walkIn: form.walkIn,
     }
     try {
       const saved = editing ? await apiPut<Appointment>(`/api/appointments/${editing.id}`, payload) : await apiPost<Appointment>('/api/appointments', payload)
@@ -149,6 +154,25 @@ export default function AppointmentsPage() {
     } finally { setSaving(false) }
   }
 
+  async function reschedule(appointment: Appointment, doctorId: number, startTime: string) {
+    const duration = timeToMinutes(appointment.appointmentEndDateTime.slice(11, 16)) - timeToMinutes(appointment.appointmentDateTime.slice(11, 16))
+    const endMinutes = timeToMinutes(startTime) + Math.max(duration, 30)
+    const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2, '0')}:${String(endMinutes % 60).padStart(2, '0')}`
+    try {
+      const saved = await apiPut<Appointment>(`/api/appointments/${appointment.id}`, { patientId: appointment.patientId, doctorId, appointmentDateTime: `${selectedDate}T${startTime}:00`, appointmentEndDateTime: `${selectedDate}T${endTime}:00`, appointmentType: appointment.appointmentType, status: appointment.status, notes: appointment.notes, overrideConflict: false, walkIn: appointment.walkIn })
+      setAppointments((current) => current.map((item) => item.id === saved.id ? saved : item).sort((a, b) => a.appointmentDateTime.localeCompare(b.appointmentDateTime)))
+      setError('')
+    } catch (requestError) {
+      if (requestError instanceof ApiRequestError && requestError.status === 409 && isAppointmentConflict(requestError.payload)) setConflict(requestError.payload)
+      else setError(requestError instanceof Error ? requestError.message : 'Unable to reschedule appointment')
+    }
+  }
+
+  async function checkIn(appointment: Appointment) {
+    try { const saved = await apiPost<Appointment>(`/api/appointments/${appointment.id}/check-in`, {}); setAppointments((current) => current.map((item) => item.id === saved.id ? saved : item)) }
+    catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Unable to check in patient') }
+  }
+
   async function remove(appointment: Appointment) {
     if (!window.confirm(`Delete appointment for ${appointment.patientName}?`)) return
     try { await apiDelete(`/api/appointments/${appointment.id}`); setAppointments((current) => current.filter((item) => item.id !== appointment.id)) }
@@ -158,20 +182,31 @@ export default function AppointmentsPage() {
   return <div className="space-y-6 py-7">
     <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
       <div><p className="text-sm text-muted">Schedule and track appointments across your clinic.</p><p className="mt-1 text-xs text-muted">Select a date to see every visit in a time-based schedule.</p></div>
-      <button onClick={openCreate} disabled={patients.length === 0 || doctors.length === 0} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={16} /> New appointment</button>
+      <div className="flex gap-2"><button onClick={() => openCreate(true)} disabled={patients.length === 0 || doctors.length === 0} className="inline-flex items-center justify-center gap-2 rounded-xl border border-teal-200 bg-white px-4 py-3 text-xs font-bold text-teal-700 hover:bg-teal-50 disabled:opacity-50"><UserRound size={16} /> Walk-in</button><button onClick={() => openCreate()} disabled={patients.length === 0 || doctors.length === 0} className="inline-flex items-center justify-center gap-2 rounded-xl bg-teal-600 px-4 py-3 text-xs font-bold text-white shadow-lg shadow-teal-600/20 hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-50"><Plus size={16} /> New appointment</button></div>
     </div>
 
     <div className="flex flex-col gap-4 rounded-2xl border border-slate-100 bg-white p-4 shadow-soft xl:flex-row xl:items-center xl:justify-between">
-      <div className="flex flex-wrap items-center gap-2"><span className="mr-2 text-xs font-bold text-muted">Filter status</span>{statuses.map((status) => <button key={status} onClick={() => setStatusFilter(status)} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition ${statusFilter === status ? 'bg-teal-600 text-white' : 'bg-slate-50 text-muted hover:bg-teal-50 hover:text-teal-700'}`}>{status.replace('_', ' ')}</button>)}</div>
-      <div className="flex flex-wrap items-center justify-between gap-3"><DateNavigator selectedDate={selectedDate} setSelectedDate={setSelectedDate} /><div className="flex items-center gap-1 rounded-xl bg-slate-50 p-1"><button onClick={() => setView('SCHEDULE')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold ${view === 'SCHEDULE' ? 'bg-white text-teal-700 shadow-sm' : 'text-muted'}`}><CalendarDays size={14} /> Schedule</button><button onClick={() => setView('LIST')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold ${view === 'LIST' ? 'bg-white text-teal-700 shadow-sm' : 'text-muted'}`}><List size={14} /> List</button></div></div>
+      <div className="flex flex-wrap items-center gap-2"><span className="mr-2 text-xs font-bold text-muted">Filter</span>{statuses.map((status) => <button key={status} onClick={() => setStatusFilter(status)} className={`rounded-lg px-3 py-2 text-[11px] font-bold transition ${statusFilter === status ? 'bg-teal-600 text-white' : 'bg-slate-50 text-muted hover:bg-teal-50 hover:text-teal-700'}`}>{status.replace('_', ' ')}</button>)}<select value={doctorFilter} onChange={(event) => setDoctorFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold"><option value="ALL">All doctors</option>{doctors.map((doctor) => <option key={doctor.id} value={doctor.id}>{doctor.fullName}</option>)}</select><select value={branchFilter} onChange={(event) => setBranchFilter(event.target.value)} className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-[11px] font-bold"><option value="ALL">All branches</option>{branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}</select></div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><DateNavigator selectedDate={selectedDate} setSelectedDate={setSelectedDate} /><div className="flex items-center gap-1 rounded-xl bg-slate-50 p-1"><button onClick={() => setView('SCHEDULE')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold ${view === 'SCHEDULE' ? 'bg-white text-teal-700 shadow-sm' : 'text-muted'}`}><CalendarDays size={14} /> Schedule</button><button onClick={() => setView('DOCTOR')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold ${view === 'DOCTOR' ? 'bg-white text-teal-700 shadow-sm' : 'text-muted'}`}><Stethoscope size={14} /> Doctor view</button><button onClick={() => setView('LIST')} className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-[11px] font-bold ${view === 'LIST' ? 'bg-white text-teal-700 shadow-sm' : 'text-muted'}`}><List size={14} /> List</button></div></div>
     </div>
 
     {error && !formOpen && <p className="rounded-xl bg-rose-50 px-4 py-3 text-xs font-semibold text-rose-600">{error}</p>}
-    {loading ? <LoadingState /> : error && appointments.length === 0 ? <ErrorState message={error} onRetry={loadAppointments} /> : view === 'SCHEDULE' ? <ScheduleView appointments={selectedDayAppointments} selectedDate={selectedDate} onEdit={openEdit} /> : <AppointmentList appointments={filtered} selectedDate={selectedDate} patients={patients} doctors={doctors} onEdit={openEdit} onRemove={remove} />}
+    {loading ? <LoadingState /> : error && appointments.length === 0 ? <ErrorState message={error} onRetry={loadAppointments} /> : view === 'SCHEDULE' ? <ScheduleView appointments={selectedDayAppointments} selectedDate={selectedDate} onEdit={openEdit} /> : view === 'DOCTOR' ? <DoctorCalendarView appointments={selectedDayAppointments} doctors={doctors.filter((doctor) => branchFilter === 'ALL' || String(doctor.branchId) === branchFilter)} selectedDate={selectedDate} onEdit={openEdit} onReschedule={reschedule} /> : <AppointmentList appointments={filtered} selectedDate={selectedDate} patients={patients} doctors={doctors} onEdit={openEdit} onRemove={remove} />}
+    <QueuePanel appointments={selectedDayAppointments.filter((appointment) => appointment.walkIn)} onCheckIn={checkIn} onEdit={openEdit} />
     {formOpen && <AppointmentModalAutocomplete editing={editing} form={form} setForm={setForm} patients={patients} doctors={doctors} saving={saving} error={error} onClose={closeForm} onSave={requestSave} />}
     {confirmOpen && <ConfirmationModal editing={editing} patientName={patientIdentity(patients.find((patient) => String(patient.id) === form.patientId))} doctorName={doctors.find((doctor) => String(doctor.id) === form.doctorId)?.fullName ?? 'Selected doctor'} form={form} saving={saving} onClose={() => setConfirmOpen(false)} onConfirm={() => confirmSave(false)} />}
     {conflict && <ConflictModal conflict={conflict} saving={saving} onChooseAnother={() => setConflict(null)} onChooseSlot={(slot) => { setForm({ ...form, startTime: slot.startTime, endTime: slot.endTime }); setConflict(null) }} onOverride={() => confirmSave(true)} />}
   </div>
+}
+
+function DoctorCalendarView({ appointments, doctors, selectedDate, onEdit, onReschedule }: { appointments: Appointment[]; doctors: Doctor[]; selectedDate: string; onEdit: (appointment: Appointment) => void; onReschedule: (appointment: Appointment, doctorId: number, startTime: string) => void }) {
+  const slots = Array.from({ length: (scheduleEndHour - scheduleStartHour) * 2 }, (_, index) => { const minutes = scheduleStartHour * 60 + index * 30; return `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}` })
+  return <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-soft"><div className="border-b border-slate-100 p-5"><h2 className="heading-font text-base font-extrabold text-ink">Doctor-wise calendar</h2><p className="mt-1 text-xs text-muted">Drag an appointment to another doctor or time slot on {formatDateLabel(selectedDate)}.</p></div><div className="overflow-x-auto"><div className="grid min-w-[900px]" style={{ gridTemplateColumns: `76px repeat(${Math.max(doctors.length, 1)}, minmax(190px, 1fr))` }}><div className="border-b border-r border-slate-100 bg-slate-50/60 p-3 text-[10px] font-bold uppercase tracking-[0.14em] text-slate-400">Time</div>{doctors.length === 0 ? <div className="p-4 text-xs text-muted">No doctors found.</div> : doctors.map((doctor) => <div key={doctor.id} className="border-b border-r border-slate-100 p-3 text-xs font-bold text-ink"><Stethoscope size={14} className="mr-1 inline text-teal-600" />{doctor.fullName}</div>)}{slots.map((slot) => <div key={`row-${slot}`} className="contents"><div className="border-b border-r border-slate-100 bg-slate-50/40 px-3 py-3 text-[10px] font-bold text-slate-400">{slot}</div>{doctors.map((doctor) => { const appointment = appointments.find((item) => item.doctorId === doctor.id && item.appointmentDateTime.slice(11, 16) === slot); return <div key={`${doctor.id}-${slot}`} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { const id = Number(event.dataTransfer.getData('appointment-id')); const moved = appointments.find((item) => item.id === id); if (moved) onReschedule(moved, doctor.id, slot) }} className="min-h-[54px] border-b border-r border-slate-100 p-1 transition hover:bg-teal-50/50">{appointment && <button draggable onDragStart={(event) => event.dataTransfer.setData('appointment-id', String(appointment.id))} onClick={() => onEdit(appointment)} className="w-full rounded-lg border border-teal-200 bg-teal-50 px-2 py-1.5 text-left shadow-sm"><p className="truncate text-[11px] font-extrabold text-teal-800">{appointment.patientName}</p><p className="truncate text-[10px] text-teal-700">{appointment.appointmentType}</p><StatusBadge value={appointment.status} /></button>}</div> })}</div>)}</div></div></section>
+}
+
+function QueuePanel({ appointments, onCheckIn, onEdit }: { appointments: Appointment[]; onCheckIn: (appointment: Appointment) => void; onEdit: (appointment: Appointment) => void }) {
+  const queue = [...appointments].sort((a, b) => (a.queuePosition ?? 999) - (b.queuePosition ?? 999))
+  return <section className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft"><div className="flex items-start justify-between gap-3"><div><h2 className="heading-font text-base font-extrabold text-ink">Walk-in queue</h2><p className="mt-1 text-xs text-muted">Check in walk-ins and move through today's queue.</p></div><span className="rounded-full bg-amber-50 px-2.5 py-1 text-[10px] font-bold text-amber-700">{queue.length} waiting</span></div>{queue.length === 0 ? <p className="mt-4 text-sm text-muted">No walk-ins for this date.</p> : <div className="mt-4 space-y-2">{queue.map((appointment, index) => <div key={appointment.id} className="flex items-center gap-3 rounded-xl border border-slate-100 px-3 py-2.5"><span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-xs font-extrabold text-amber-700">{appointment.queuePosition ?? index + 1}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-bold text-ink">{appointment.patientName}</p><p className="truncate text-[10px] text-muted">{appointment.doctorName} · {appointment.status}</p></div>{appointment.checkedInAt ? <span className="text-[10px] font-bold text-emerald-600">Checked in</span> : <button onClick={() => onCheckIn(appointment)} className="rounded-lg bg-teal-50 px-2.5 py-1.5 text-[10px] font-bold text-teal-700">Check in</button>}<button onClick={() => onEdit(appointment)} className="rounded-lg p-1.5 text-muted hover:bg-slate-50"><Pencil size={14} /></button></div>)}</div>}</section>
 }
 
 function DateNavigator({ selectedDate, setSelectedDate }: { selectedDate: string; setSelectedDate: (value: string) => void }) {
@@ -227,7 +262,7 @@ function ConflictModal({ conflict, saving, onChooseAnother, onChooseSlot, onOver
 
 function AppointmentModalAutocomplete({ editing, form, setForm, patients, doctors, saving, error, onClose, onSave }: { editing: Appointment | null; form: AppointmentForm; setForm: (form: AppointmentForm) => void; patients: Patient[]; doctors: Doctor[]; saving: boolean; error: string; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {
   const typeOptions = Array.from(new Set(form.appointmentType ? [...appointmentTypes, form.appointmentType] : appointmentTypes)).map((value) => ({ value, label: value }))
-  return <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/30 p-0 backdrop-blur-sm sm:items-center sm:p-5"><div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl"><div className="flex items-start justify-between"><div><h2 className="heading-font text-xl font-extrabold text-ink">{editing ? 'Edit appointment' : 'New appointment'}</h2><p className="mt-1 text-xs text-muted">Search the patient and doctor, then choose the appointment type.</p></div><button onClick={onClose} className="rounded-lg p-2 text-muted hover:bg-slate-100"><X size={18} /></button></div><form onSubmit={onSave} className="mt-6 space-y-4"><div className="grid gap-4 sm:grid-cols-2"><AutocompleteField label="Patient" required value={form.patientId} onChange={(value) => setForm({ ...form, patientId: value })} options={patients.map(patientOption)} placeholder="Search name, phone or patient ID" /><AutocompleteField label="Doctor" required value={form.doctorId} onChange={(value) => setForm({ ...form, doctorId: value })} options={doctors.map((doctor) => ({ value: String(doctor.id), label: `${doctor.fullName} · ${doctor.specialization}` }))} placeholder="Search doctor" /><Field label="Date" type="date" required value={form.appointmentDate} onChange={(value) => setForm({ ...form, appointmentDate: value })} /><Field label="Start time" type="time" required value={form.startTime} onChange={(value) => setForm({ ...form, startTime: value })} /><Field label="End time" type="time" required value={form.endTime} onChange={(value) => setForm({ ...form, endTime: value })} /><SelectField label="Appointment type" required value={form.appointmentType} onChange={(value) => setForm({ ...form, appointmentType: value })} options={[{ value: '', label: 'Select appointment type' }, ...typeOptions]} /><SelectField label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value })} options={['SCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'].map((value) => ({ value, label: value.replace('_', ' ') }))} /></div><label className="block"><span className="mb-1.5 flex items-center gap-2 text-xs font-bold text-ink"><Clock3 size={14} className="text-muted" />Notes</span><textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10" /></label>{error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">{error}</p>}<div className="flex justify-end gap-3 border-t border-slate-100 pt-5"><button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-xs font-bold text-muted hover:bg-slate-100">Cancel</button><button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-60">{saving ? 'Saving...' : editing ? 'Save changes' : 'Create appointment'}</button></div></form></div></div>
+  return <div className="fixed inset-0 z-[70] flex items-end justify-center bg-ink/30 p-0 backdrop-blur-sm sm:items-center sm:p-5"><div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:rounded-3xl"><div className="flex items-start justify-between"><div><h2 className="heading-font text-xl font-extrabold text-ink">{editing ? 'Edit appointment' : 'New appointment'}</h2><p className="mt-1 text-xs text-muted">Search the patient and doctor, then choose the appointment type.</p></div><button onClick={onClose} className="rounded-lg p-2 text-muted hover:bg-slate-100"><X size={18} /></button></div><form onSubmit={onSave} className="mt-6 space-y-4"><div className="grid gap-4 sm:grid-cols-2"><AutocompleteField label="Patient" required value={form.patientId} onChange={(value) => setForm({ ...form, patientId: value })} options={patients.map(patientOption)} placeholder="Search name, phone or patient ID" /><AutocompleteField label="Doctor" required value={form.doctorId} onChange={(value) => setForm({ ...form, doctorId: value })} options={doctors.map((doctor) => ({ value: String(doctor.id), label: `${doctor.fullName} · ${doctor.specialization}` }))} placeholder="Search doctor" /><Field label="Date" type="date" required value={form.appointmentDate} onChange={(value) => setForm({ ...form, appointmentDate: value })} /><Field label="Start time" type="time" required value={form.startTime} onChange={(value) => setForm({ ...form, startTime: value })} /><Field label="End time" type="time" required value={form.endTime} onChange={(value) => setForm({ ...form, endTime: value })} /><SelectField label="Appointment type" required value={form.appointmentType} onChange={(value) => setForm({ ...form, appointmentType: value })} options={[{ value: '', label: 'Select appointment type' }, ...typeOptions]} /><SelectField label="Status" value={form.status} onChange={(value) => setForm({ ...form, status: value })} options={['SCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'].map((value) => ({ value, label: value.replace('_', ' ') }))} /></div><label className="flex items-center gap-2 text-xs font-bold text-ink"><input type="checkbox" checked={form.walkIn} onChange={(event) => setForm({ ...form, walkIn: event.target.checked })} className="h-4 w-4 accent-teal-600" /> Add to walk-in queue</label><label className="block"><span className="mb-1.5 flex items-center gap-2 text-xs font-bold text-ink"><Clock3 size={14} className="text-muted" />Notes</span><textarea rows={3} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} className="w-full resize-none rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-teal-500 focus:ring-4 focus:ring-teal-500/10" /></label>{error && <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-600">{error}</p>}<div className="flex justify-end gap-3 border-t border-slate-100 pt-5"><button type="button" onClick={onClose} className="rounded-xl px-4 py-2.5 text-xs font-bold text-muted hover:bg-slate-100">Cancel</button><button disabled={saving} className="rounded-xl bg-teal-600 px-5 py-2.5 text-xs font-bold text-white hover:bg-teal-700 disabled:opacity-60">{saving ? 'Saving...' : editing ? 'Save changes' : 'Create appointment'}</button></div></form></div></div>
 }
 
 function AppointmentModal({ editing, form, setForm, patients, doctors, saving, error, onClose, onSave }: { editing: Appointment | null; form: AppointmentForm; setForm: (form: AppointmentForm) => void; patients: Patient[]; doctors: Doctor[]; saving: boolean; error: string; onClose: () => void; onSave: (event: FormEvent<HTMLFormElement>) => void }) {

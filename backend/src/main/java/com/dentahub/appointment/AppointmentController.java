@@ -70,6 +70,9 @@ public class AppointmentController {
         if (validation != null) return validation;
         Appointment appointment = new Appointment();
         apply(appointment, request);
+        if (request.walkIn()) {
+            appointment.setQueuePosition(nextQueuePosition(request.appointmentDateTime().toLocalDate()));
+        }
         return ResponseEntity.ok(toResponse(repository.save(appointment)));
     }
 
@@ -85,8 +88,17 @@ public class AppointmentController {
                 .filter(appointment -> doctorRepository.findById(appointment.getDoctorId()).map(doctor -> accessService.canAccess(authorization, doctor.getBranchId())).orElse(false))
                 .map(appointment -> {
                     apply(appointment, request);
+                    if (request.walkIn() && appointment.getQueuePosition() == null) appointment.setQueuePosition(nextQueuePosition(request.appointmentDateTime().toLocalDate()));
                     return ResponseEntity.ok(toResponse(repository.save(appointment)));
                 })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    @PostMapping("/{id}/check-in")
+    public ResponseEntity<?> checkIn(@PathVariable Long id, @RequestHeader(value = "Authorization", required = false) String authorization) {
+        return repository.findById(id)
+                .filter(appointment -> doctorRepository.findById(appointment.getDoctorId()).map(doctor -> accessService.canAccess(authorization, doctor.getBranchId())).orElse(false))
+                .map(appointment -> { appointment.setCheckedInAt(LocalDateTime.now()); if ("SCHEDULED".equals(appointment.getStatus())) appointment.setStatus("CONFIRMED"); return ResponseEntity.ok(toResponse(repository.save(appointment))); })
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
 
@@ -156,7 +168,7 @@ public class AppointmentController {
         for (LocalDateTime slotStart = dayStart; !slotStart.isAfter(lastStart) && slots.size() < 6; slotStart = slotStart.plusMinutes(30)) {
             LocalDateTime slotEnd = slotStart.plusMinutes(durationMinutes);
             AppointmentRequest slotRequest = new AppointmentRequest(request.patientId(), request.doctorId(), slotStart, slotEnd,
-                    request.appointmentType(), request.status(), request.notes(), true);
+                    request.appointmentType(), request.status(), request.notes(), true, request.walkIn());
             if (findConflicts(slotRequest, ignoredAppointmentId).isEmpty()) {
                 slots.add(new AvailableSlot(slotStart.toLocalTime().format(TIME_FORMATTER), slotEnd.toLocalTime().format(TIME_FORMATTER)));
             }
@@ -192,7 +204,14 @@ public class AppointmentController {
         appointment.setAppointmentEndDateTime(request.appointmentEndDateTime());
         appointment.setAppointmentType(request.appointmentType().trim());
         appointment.setStatus(request.status() == null || request.status().isBlank() ? "SCHEDULED" : request.status().toUpperCase());
+        appointment.setWalkIn(request.walkIn());
+        if (!request.walkIn()) appointment.setQueuePosition(null);
         appointment.setNotes(request.notes() == null || request.notes().isBlank() ? null : request.notes().trim());
+    }
+
+    private int nextQueuePosition(LocalDate date) {
+        return repository.findAll().stream().filter(item -> item.isWalkIn() && item.getAppointmentDateTime().toLocalDate().equals(date))
+                .map(Appointment::getQueuePosition).filter(java.util.Objects::nonNull).max(Integer::compareTo).orElse(0) + 1;
     }
 
     private AppointmentResponse toResponse(Appointment appointment) {
@@ -202,7 +221,7 @@ public class AppointmentController {
                 ? appointment.getAppointmentDateTime().plusMinutes(30)
                 : appointment.getAppointmentEndDateTime();
         return new AppointmentResponse(appointment.getId(), appointment.getPatientId(), patientName, appointment.getDoctorId(), doctorName,
-                appointment.getAppointmentDateTime(), endDateTime, appointment.getAppointmentType(), appointment.getStatus(), appointment.getNotes());
+                appointment.getAppointmentDateTime(), endDateTime, appointment.getAppointmentType(), appointment.getStatus(), appointment.getNotes(), appointment.isWalkIn(), appointment.getQueuePosition(), appointment.getCheckedInAt());
     }
 
     public record AppointmentRequest(
@@ -213,7 +232,8 @@ public class AppointmentController {
             @NotBlank String appointmentType,
             String status,
             String notes,
-            boolean overrideConflict) {
+            boolean overrideConflict,
+            boolean walkIn) {
     }
 
     public record AppointmentResponse(
@@ -226,7 +246,10 @@ public class AppointmentController {
             LocalDateTime appointmentEndDateTime,
             String appointmentType,
             String status,
-            String notes) {
+            String notes,
+            boolean walkIn,
+            Integer queuePosition,
+            LocalDateTime checkedInAt) {
     }
 
     public record ConflictResponse(String message, List<ConflictAppointment> conflicts, List<AvailableSlot> availableSlots) {

@@ -38,6 +38,12 @@ public class Appointment {
     @Column(nullable = false)
     private String status = "SCHEDULED";
 
+    @Column(nullable = false)
+    private boolean walkIn = false;
+
+    private Integer queuePosition;
+    private LocalDateTime checkedInAt;
+
     @Column(columnDefinition = "TEXT")
     private String notes;
 
@@ -70,6 +76,12 @@ public class Appointment {
     public void setAppointmentType(String appointmentType) { this.appointmentType = appointmentType; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
+    public boolean isWalkIn() { return walkIn; }
+    public void setWalkIn(boolean walkIn) { this.walkIn = walkIn; }
+    public Integer getQueuePosition() { return queuePosition; }
+    public void setQueuePosition(Integer queuePosition) { this.queuePosition = queuePosition; }
+    public LocalDateTime getCheckedInAt() { return checkedInAt; }
+    public void setCheckedInAt(LocalDateTime checkedInAt) { this.checkedInAt = checkedInAt; }
     public String getNotes() { return notes; }
     public void setNotes(String notes) { this.notes = notes; }
     public Instant getCreatedAt() { return createdAt; }

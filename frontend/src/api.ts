@@ -34,6 +34,16 @@ export const apiGet = <T,>(path: string) => request<T>(path)
 export const apiPost = <T,>(path: string, body: unknown) => request<T>(path, { method: 'POST', body: JSON.stringify(body) })
 export const apiPut = <T,>(path: string, body: unknown) => request<T>(path, { method: 'PUT', body: JSON.stringify(body) })
 export const apiDelete = (path: string) => request<void>(path, { method: 'DELETE' })
+export async function apiUpload<T>(path: string, file: File): Promise<T> {
+  const token = localStorage.getItem('dentahub_token')
+  const data = new FormData(); data.append('file', file)
+  const response = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', body: data, headers: token ? { Authorization: `Bearer ${token}` } : {} })
+  const payload = await response.json().catch(() => null)
+  if (!response.ok) throw new ApiRequestError(payload?.message ?? `Request failed with status ${response.status}`, response.status, payload)
+  return payload as T
+}
+
+export type GlobalSearchResult = { type: 'PATIENT' | 'INVOICE' | 'APPOINTMENT'; id: number; title: string; subtitle: string; path: string }
 
 export type Patient = {
   id: number
@@ -46,8 +56,13 @@ export type Patient = {
   address: string | null
   emergencyContact: string | null
   medicalNotes: string | null
+  allergies: string | null
+  medications: string | null
+  medicalHistory: string | null
   status: string
 }
+
+export type PatientAttachment = { id: number; fileName: string; contentType: string; fileSize: number; createdAt: string }
 
 export type Doctor = {
   id: number
@@ -85,6 +100,9 @@ export type Appointment = {
   appointmentType: string
   status: string
   notes: string | null
+  walkIn: boolean
+  queuePosition: number | null
+  checkedInAt: string | null
 }
 
 export type AppointmentConflict = {

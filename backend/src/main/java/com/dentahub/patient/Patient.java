@@ -36,6 +36,15 @@ public class Patient {
     @Column(columnDefinition = "TEXT")
     private String medicalNotes;
 
+    @Column(columnDefinition = "TEXT")
+    private String allergies;
+
+    @Column(columnDefinition = "TEXT")
+    private String medications;
+
+    @Column(columnDefinition = "TEXT")
+    private String medicalHistory;
+
     @Column(nullable = false)
     private String status = "ACTIVE";
 
@@ -74,6 +83,12 @@ public class Patient {
     public void setEmergencyContact(String emergencyContact) { this.emergencyContact = emergencyContact; }
     public String getMedicalNotes() { return medicalNotes; }
     public void setMedicalNotes(String medicalNotes) { this.medicalNotes = medicalNotes; }
+    public String getAllergies() { return allergies; }
+    public void setAllergies(String allergies) { this.allergies = allergies; }
+    public String getMedications() { return medications; }
+    public void setMedications(String medications) { this.medications = medications; }
+    public String getMedicalHistory() { return medicalHistory; }
+    public void setMedicalHistory(String medicalHistory) { this.medicalHistory = medicalHistory; }
     public String getStatus() { return status; }
     public void setStatus(String status) { this.status = status; }
     public Instant getCreatedAt() { return createdAt; }
