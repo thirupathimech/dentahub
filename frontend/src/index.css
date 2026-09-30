@@ -18,6 +18,7 @@
   --surface-muted: #f8fbfb;
   --border: #e6eef0;
   --border-strong: #d8e4e7;
+  --card-border: #dcebed;
   --ink: #183b42;
   --muted: #70858a;
 }
@@ -29,6 +30,7 @@ html.dark {
   --surface-muted: #1d3439;
   --border: #2d464b;
   --border-strong: #38545a;
+  --card-border: #315158;
   --ink: #e2eff0;
   --muted: #9bb1b5;
   color: var(--ink);
@@ -42,6 +44,29 @@ button, input { font: inherit; }
 .heading-font { font-family: 'Plus Jakarta Sans', ui-sans-serif, system-ui, sans-serif; }
 .scrollbar-hidden::-webkit-scrollbar { display: none; }
 .scrollbar-hidden { scrollbar-width: none; }
+
+/* White surfaces need enough separation from the page background to scan well. */
+.card-surface {
+  border-color: var(--card-border) !important;
+  box-shadow: 0 3px 8px rgba(24, 59, 66, 0.03), 0 14px 30px rgba(24, 59, 66, 0.07);
+  transition: border-color 180ms ease, box-shadow 180ms ease, transform 180ms ease;
+}
+
+.card-surface:hover {
+  border-color: #b8dfe0 !important;
+  box-shadow: 0 5px 12px rgba(24, 59, 66, 0.04), 0 18px 36px rgba(24, 59, 66, 0.1);
+}
+
+.card-surface:focus-within {
+  border-color: #8ccfd0 !important;
+  box-shadow: 0 0 0 3px rgba(20, 156, 165, 0.1), 0 14px 30px rgba(24, 59, 66, 0.07);
+}
+
+/* Keep the rest of the existing white panels consistent while they are not interactive cards. */
+.shadow-soft {
+  border-color: var(--card-border);
+  box-shadow: 0 3px 8px rgba(24, 59, 66, 0.03), 0 14px 30px rgba(24, 59, 66, 0.07);
+}
 
 html.dark .bg-cream { background-color: var(--page-bg); }
 html.dark .bg-white { background-color: var(--surface); }
@@ -83,6 +108,15 @@ html.dark .hover\:bg-slate-100:hover { background-color: #243b40; }
 html.dark .hover\:bg-teal-50:hover { background-color: #214047; }
 html.dark .hover\:text-ink:hover { color: var(--ink); }
 html.dark .shadow-soft { box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18); }
+html.dark .card-surface {
+  border-color: var(--card-border) !important;
+  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.2), 0 18px 36px rgba(0, 0, 0, 0.12);
+}
+
+html.dark .card-surface:hover {
+  border-color: #4b8589 !important;
+  box-shadow: 0 7px 18px rgba(0, 0, 0, 0.24), 0 20px 42px rgba(0, 0, 0, 0.16);
+}
 
 .theme-modal {
   background-color: var(--surface);

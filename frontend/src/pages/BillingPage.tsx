@@ -144,7 +144,7 @@ function Pagination({ page, pageCount, onChange }: { page: number; pageCount: nu
 
 function SummaryCard({ label, value, caption, icon: Icon, tone }: { label: string; value: string; caption: string; icon: typeof FileText; tone: 'teal' | 'emerald' | 'blue' | 'orange' }) {
   const colors = { teal: 'bg-teal-50 text-teal-600', emerald: 'bg-emerald-50 text-emerald-600', blue: 'bg-blue-50 text-blue-600', orange: 'bg-orange-50 text-orange-600' }
-  return <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-soft"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-muted">{label}</p><p className="heading-font mt-2 text-xl font-extrabold tracking-tight text-ink">{value}</p></div><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${colors[tone]}`}><Icon size={19} /></span></div><p className="mt-5 text-[11px] text-muted">{caption}</p></div>
+  return <div className="card-surface rounded-2xl border border-slate-100 bg-white p-5 shadow-soft"><div className="flex items-start justify-between"><div><p className="text-xs font-semibold text-muted">{label}</p><p className="heading-font mt-2 text-xl font-extrabold tracking-tight text-ink">{value}</p></div><span className={`flex h-10 w-10 items-center justify-center rounded-xl ${colors[tone]}`}><Icon size={19} /></span></div><p className="mt-5 text-[11px] text-muted">{caption}</p></div>
 }
 
 function InvoiceTable({ invoices, onEdit, onDelete, onPrint }: { invoices: BillingInvoice[]; onEdit: (invoice: BillingInvoice) => void; onDelete: (invoice: BillingInvoice) => void; onPrint: (invoice: BillingInvoice) => void }) {
