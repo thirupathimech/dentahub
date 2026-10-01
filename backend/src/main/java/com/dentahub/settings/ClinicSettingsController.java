@@ -42,6 +42,17 @@ public class ClinicSettingsController {
         settings.setCurrency(blankToNull(request.currency()));
         settings.setTimezone(blankToNull(request.timezone()));
         settings.setAppointmentDurationMinutes(request.appointmentDurationMinutes());
+        settings.setEmailNotificationsEnabled(Boolean.TRUE.equals(request.emailNotificationsEnabled()));
+        settings.setEmailProvider(blankToNull(request.emailProvider()));
+        settings.setSmtpHost(blankToNull(request.smtpHost()));
+        settings.setSmtpPort(request.smtpPort());
+        settings.setSmtpUsername(blankToNull(request.smtpUsername()));
+        if (request.smtpPassword() != null && !request.smtpPassword().isBlank()) {
+            settings.setSmtpPassword(request.smtpPassword().trim());
+        }
+        settings.setSmtpEncryption(blankToNull(request.smtpEncryption()));
+        settings.setEmailFromName(blankToNull(request.emailFromName()));
+        settings.setEmailFromAddress(blankToNull(request.emailFromAddress()));
         settings.setLogoDataUrl(blankToNull(request.logoDataUrl()));
         return ResponseEntity.ok(toResponse(repository.save(settings)));
     }
@@ -52,7 +63,9 @@ public class ClinicSettingsController {
 
     private static SettingsResponse toResponse(ClinicSettings settings) {
         return new SettingsResponse(settings.getId(), settings.getClinicName(), settings.getPhone(), settings.getEmail(), settings.getAddress(),
-                settings.getCity(), settings.getState(), settings.getPostalCode(), settings.getCurrency(), settings.getTimezone(), settings.getAppointmentDurationMinutes(), settings.getLogoDataUrl());
+                settings.getCity(), settings.getState(), settings.getPostalCode(), settings.getCurrency(), settings.getTimezone(), settings.getAppointmentDurationMinutes(),
+                settings.isEmailNotificationsEnabled(), settings.getEmailProvider(), settings.getSmtpHost(), settings.getSmtpPort(), settings.getSmtpUsername(),
+                settings.getSmtpPassword() != null && !settings.getSmtpPassword().isBlank(), settings.getSmtpEncryption(), settings.getEmailFromName(), settings.getEmailFromAddress(), settings.getLogoDataUrl());
     }
 
     public record SettingsRequest(
@@ -66,6 +79,15 @@ public class ClinicSettingsController {
             String currency,
             String timezone,
             @Positive Integer appointmentDurationMinutes,
+            Boolean emailNotificationsEnabled,
+            String emailProvider,
+            String smtpHost,
+            @Positive Integer smtpPort,
+            String smtpUsername,
+            String smtpPassword,
+            String smtpEncryption,
+            String emailFromName,
+            @Email String emailFromAddress,
             String logoDataUrl) {
     }
 
@@ -81,9 +103,18 @@ public class ClinicSettingsController {
             String currency,
             String timezone,
             Integer appointmentDurationMinutes,
+            boolean emailNotificationsEnabled,
+            String emailProvider,
+            String smtpHost,
+            Integer smtpPort,
+            String smtpUsername,
+            boolean smtpPasswordConfigured,
+            String smtpEncryption,
+            String emailFromName,
+            String emailFromAddress,
             String logoDataUrl) {
         static SettingsResponse empty() {
-            return new SettingsResponse(null, "", null, null, null, null, null, null, null, null, null, null);
+            return new SettingsResponse(null, "", null, null, null, null, null, null, null, null, null, false, null, null, null, null, false, null, null, null, null);
         }
     }
 }

@@ -32,6 +32,21 @@ public class ClinicSettings {
     private String timezone;
     private Integer appointmentDurationMinutes;
 
+    @Column(nullable = false)
+    private boolean emailNotificationsEnabled = false;
+
+    private String emailProvider;
+    private String smtpHost;
+    private Integer smtpPort;
+    private String smtpUsername;
+
+    @Column(length = 512)
+    private String smtpPassword;
+
+    private String smtpEncryption;
+    private String emailFromName;
+    private String emailFromAddress;
+
     @Column(columnDefinition = "MEDIUMTEXT")
     private String logoDataUrl;
 
@@ -65,6 +80,24 @@ public class ClinicSettings {
     public void setTimezone(String timezone) { this.timezone = timezone; }
     public Integer getAppointmentDurationMinutes() { return appointmentDurationMinutes; }
     public void setAppointmentDurationMinutes(Integer appointmentDurationMinutes) { this.appointmentDurationMinutes = appointmentDurationMinutes; }
+    public boolean isEmailNotificationsEnabled() { return emailNotificationsEnabled; }
+    public void setEmailNotificationsEnabled(boolean emailNotificationsEnabled) { this.emailNotificationsEnabled = emailNotificationsEnabled; }
+    public String getEmailProvider() { return emailProvider; }
+    public void setEmailProvider(String emailProvider) { this.emailProvider = emailProvider; }
+    public String getSmtpHost() { return smtpHost; }
+    public void setSmtpHost(String smtpHost) { this.smtpHost = smtpHost; }
+    public Integer getSmtpPort() { return smtpPort; }
+    public void setSmtpPort(Integer smtpPort) { this.smtpPort = smtpPort; }
+    public String getSmtpUsername() { return smtpUsername; }
+    public void setSmtpUsername(String smtpUsername) { this.smtpUsername = smtpUsername; }
+    public String getSmtpPassword() { return smtpPassword; }
+    public void setSmtpPassword(String smtpPassword) { this.smtpPassword = smtpPassword; }
+    public String getSmtpEncryption() { return smtpEncryption; }
+    public void setSmtpEncryption(String smtpEncryption) { this.smtpEncryption = smtpEncryption; }
+    public String getEmailFromName() { return emailFromName; }
+    public void setEmailFromName(String emailFromName) { this.emailFromName = emailFromName; }
+    public String getEmailFromAddress() { return emailFromAddress; }
+    public void setEmailFromAddress(String emailFromAddress) { this.emailFromAddress = emailFromAddress; }
     public String getLogoDataUrl() { return logoDataUrl; }
     public void setLogoDataUrl(String logoDataUrl) { this.logoDataUrl = logoDataUrl; }
     public Instant getUpdatedAt() { return updatedAt; }

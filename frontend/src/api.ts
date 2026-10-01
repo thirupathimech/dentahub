@@ -135,6 +135,15 @@ export type ClinicSettings = {
   currency: string | null
   timezone: string | null
   appointmentDurationMinutes: number | null
+  emailNotificationsEnabled: boolean
+  emailProvider: string | null
+  smtpHost: string | null
+  smtpPort: number | null
+  smtpUsername: string | null
+  smtpPasswordConfigured: boolean
+  smtpEncryption: string | null
+  emailFromName: string | null
+  emailFromAddress: string | null
   logoDataUrl: string | null
 }
 
