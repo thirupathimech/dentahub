@@ -68,6 +68,19 @@ npm run build
 
 The generated `frontend/dist` can later be copied to Spring Boot's static resources when we wire the production packaging step.
 
+## Build the Android app
+
+The `mobile/` folder contains the Expo React Native Android app. It uses the same Spring Boot API and currently includes login, dashboard, patients, appointments, and account/logout flows.
+
+```bash
+cd mobile
+Copy-Item .env.example .env
+npm install
+npm start
+```
+
+For an Android emulator, the default API URL is `http://10.0.2.2:8080`. For a physical device, set `EXPO_PUBLIC_API_BASE_URL` to the computer's LAN IP in `mobile/.env`. See `mobile/README.md` for the installable APK build command.
+
 ## Login
 
 The UI login calls `POST /api/auth/login` and stores the returned starter session token in browser storage. The credentials are controlled through `APP_ADMIN_EMAIL` and `APP_ADMIN_PASSWORD` in `backend/.env`. This is an initial env-backed login flow; JWT/session persistence and role-based authorization should be added before production use.

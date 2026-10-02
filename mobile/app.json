@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "DentaHub",
+    "slug": "dentahub-mobile",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "scheme": "dentahub",
+    "android": {
+      "package": "com.dentahub.mobile",
+      "adaptiveIcon": {
+        "backgroundColor": "#087f8c"
+      }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "25fadfbe-25ef-4c3b-b6e0-2fe21982d686"
+      }
+    },
+    "owner": "thirupathimech",
+    "plugins": [
+      "expo-asset"
+    ]
+  }
+}
