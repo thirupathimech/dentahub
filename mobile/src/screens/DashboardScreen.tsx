@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { ActivityIndicator, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import { useFocusEffect } from '@react-navigation/native'
 import { getDashboard } from '../api'
 import { AuthUser, DashboardSummary } from '../types'
@@ -10,7 +10,7 @@ function money(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`
 }
 
-export default function DashboardScreen({ user }: { user: AuthUser }) {
+export default function DashboardScreen({ user, logoDataUrl }: { user: AuthUser; logoDataUrl: string }) {
   const [summary, setSummary] = useState<DashboardSummary | null>(null)
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -31,7 +31,7 @@ export default function DashboardScreen({ user }: { user: AuthUser }) {
 
   return <Screen scroll refreshing={refreshing} onRefresh={() => { void load(true) }}>
     <View style={styles.hero}>
-      <View style={styles.heroTop}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name.slice(0, 1).toUpperCase()}</Text></View><View style={styles.heroCopy}><Text style={styles.heroEyebrow}>Good day, {user.name.split(' ')[0]}</Text><Text style={styles.heroTitle}>Your clinic at a glance</Text><Text style={styles.heroClinic}>{user.clinicName || 'DentaHub'}</Text></View><View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View></View>
+      <View style={styles.heroTop}><View style={styles.avatar}>{logoDataUrl ? <Image source={{ uri: logoDataUrl }} accessibilityLabel={`${user.clinicName} logo`} resizeMode="contain" style={styles.logoImage} /> : null}</View><View style={styles.heroCopy}><Text style={styles.heroEyebrow}>Good day, {user.name.split(' ')[0]}</Text><Text style={styles.heroTitle}>Your clinic at a glance</Text><Text style={styles.heroClinic}>{user.clinicName || 'DentaHub'}</Text></View><View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View></View>
       <TouchableOpacity style={styles.refreshButton} onPress={() => { void load(true) }} disabled={refreshing}><Text style={styles.refreshText}>{refreshing ? 'Refreshing…' : '↻  Refresh overview'}</Text></TouchableOpacity>
     </View>
     <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Clinic at a glance</Text><Text style={styles.sectionSubtitle}>A complete view of your clinic activity</Text></View><Text style={styles.sectionHint}>Updated now</Text></View>
@@ -55,8 +55,8 @@ function Finance({ label, value }: { label: string; value: string }) { return <V
 const styles = StyleSheet.create({
   hero: { backgroundColor: '#087f8c', borderRadius: 24, padding: 18, marginBottom: 24, shadowColor: '#087f8c', shadowOpacity: 0.18, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 4 },
   heroTop: { flexDirection: 'row', alignItems: 'center' },
-  avatar: { width: 48, height: 48, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: '#ffffff', fontSize: 21, fontWeight: '800' },
+  avatar: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
+  logoImage: { width: '100%', height: '100%' },
   heroCopy: { flex: 1, marginLeft: 12 },
   heroEyebrow: { color: '#c8f0eb', fontSize: 11, fontWeight: '700' },
   heroTitle: { color: '#ffffff', fontSize: 19, fontWeight: '800', marginTop: 3 },

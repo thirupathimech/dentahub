@@ -87,14 +87,14 @@ function PatientTabNavigator({ user, onLogout }: { user: AuthUser; onLogout: () 
   </PatientTabs.Navigator>
 }
 
-function MainTabs({ user, onLogout, onSettingsSaved }: { user: AuthUser; onLogout: () => Promise<void>; onSettingsSaved: (settings: ClinicSettings) => Promise<void> }) {
+function MainTabs({ user, clinicLogo, onLogout, onSettingsSaved }: { user: AuthUser; clinicLogo: string; onLogout: () => Promise<void>; onSettingsSaved: (settings: ClinicSettings) => Promise<void> }) {
   if (user.role === 'Patient') return <PatientTabNavigator user={user} onLogout={onLogout} />
   return (
     <Tabs.Navigator
       tabBar={(props) => <ScrollableTabBar {...props} iconForRoute={(name) => tabIcon[name as keyof MainTabParamList]} />}
       screenOptions={headerOptions(user.clinicName, onLogout)}
     >
-      <Tabs.Screen name="Dashboard">{() => <DashboardScreen user={user} />}</Tabs.Screen>
+      <Tabs.Screen name="Dashboard">{() => <DashboardScreen user={user} logoDataUrl={clinicLogo} />}</Tabs.Screen>
       <Tabs.Screen name="Patients">{() => <PatientsScreen clinicName={user.clinicName} />}</Tabs.Screen>
       <Tabs.Screen name="Appointments">{() => <AppointmentsScreen clinicName={user.clinicName} />}</Tabs.Screen>
       {(user.role === 'Administrator' || user.permissions.includes('doctors')) ? <Tabs.Screen name="Doctors">{() => <DoctorsScreen clinicName={user.clinicName} />}</Tabs.Screen> : null}
@@ -135,7 +135,7 @@ export default function Navigation({ session, loading, clinicName, clinicLogo, o
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {session ? (
           <Stack.Screen name="Main">
-            {() => <MainTabs user={session.user} onLogout={onLogout} onSettingsSaved={onSettingsSaved} />}
+            {() => <MainTabs user={session.user} clinicLogo={clinicLogo} onLogout={onLogout} onSettingsSaved={onSettingsSaved} />}
           </Stack.Screen>
         ) : (
           <Stack.Screen name="Login">
