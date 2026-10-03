@@ -137,6 +137,11 @@ html.dark .theme-modal {
 html.dark .bg-amber-50 { background-color: #493b20; }
 html.dark .text-amber-600 { color: #f2c875; }
 
+.patient-access-card { background: #eefafa; }
+html.dark .patient-access-card { background: #214047; border-color: #4b8589; }
+html.dark .patient-access-card .text-teal-800 { color: #d2fffa; }
+html.dark .patient-access-card .text-teal-700 { color: #a9e9e3; }
+
 html.dark tbody tr:hover {
   color: #f2ffff;
 }

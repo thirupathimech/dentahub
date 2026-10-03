@@ -14,12 +14,14 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.RequestHeader;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Past;
+import jakarta.validation.constraints.Size;
 
 import com.dentahub.auth.BranchAccessService;
 
@@ -30,10 +32,12 @@ public class PatientController {
 
     private final PatientRepository repository;
     private final BranchAccessService accessService;
+    private final PasswordEncoder passwordEncoder;
 
-    public PatientController(PatientRepository repository, BranchAccessService accessService) {
+    public PatientController(PatientRepository repository, BranchAccessService accessService, PasswordEncoder passwordEncoder) {
         this.repository = repository;
         this.accessService = accessService;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @GetMapping
@@ -58,6 +62,7 @@ public class PatientController {
         }
         Patient patient = new Patient();
         apply(patient, request);
+        patient.setPasswordHash(passwordHash(request.password(), null));
         patient.setBranchId(accessService.scopedBranch(authorization).orElse(request.branchId()));
         return toResponse(repository.save(patient));
     }
@@ -72,6 +77,7 @@ public class PatientController {
                 .filter(patient -> accessService.canAccess(authorization, patient.getBranchId()))
                 .map(patient -> {
                     apply(patient, request);
+                    patient.setPasswordHash(passwordHash(request.password(), patient.getPasswordHash()));
                     patient.setBranchId(accessService.scopedBranch(authorization).orElse(request.branchId() == null ? patient.getBranchId() : request.branchId()));
                     return ResponseEntity.ok(toResponse(repository.save(patient)));
                 })
@@ -120,6 +126,10 @@ public class PatientController {
         patient.setStatus(request.status() == null || request.status().isBlank() ? "ACTIVE" : request.status().toUpperCase());
     }
 
+    private String passwordHash(String password, String currentHash) {
+        return password == null || password.isBlank() ? currentHash : passwordEncoder.encode(password);
+    }
+
     private static String blankToNull(String value) {
         return value == null || value.isBlank() ? null : value.trim();
     }
@@ -127,7 +137,7 @@ public class PatientController {
     private static PatientResponse toResponse(Patient patient) {
         return new PatientResponse(patient.getId(), patient.getFullName(), patient.getPhone(), patient.getEmail(),
                 patient.getDateOfBirth(), patient.getGender(), patient.getAddress(), patient.getEmergencyContact(),
-                patient.getMedicalNotes(), patient.getAllergies(), patient.getMedications(), patient.getMedicalHistory(), patient.getBranchId(), patient.getStatus());
+                patient.getMedicalNotes(), patient.getAllergies(), patient.getMedications(), patient.getMedicalHistory(), patient.getBranchId(), patient.getStatus(), patient.getPasswordHash() != null);
     }
 
     public record PatientRequest(
@@ -143,7 +153,8 @@ public class PatientController {
             String allergies,
             String medications,
             String medicalHistory,
-            String status) {
+            String status,
+            @Size(min = 6, message = "Patient login password must be at least 6 characters") String password) {
     }
 
     public record PatientResponse(
@@ -160,7 +171,8 @@ public class PatientController {
             String medications,
             String medicalHistory,
             Long branchId,
-            String status) {
+            String status,
+            boolean patientLoginEnabled) {
     }
 
     public static class DuplicatePatientException extends RuntimeException {

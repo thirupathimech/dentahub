@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
-import { login } from '../api'
+import { login, patientLogin } from '../api'
 import { AuthUser } from '../types'
 
-export default function LoginScreen({ onLogin }: { onLogin: (token: string, user: AuthUser) => Promise<void> }) {
+export default function LoginScreen({ clinicName, onLogin }: { clinicName: string; onLogin: (token: string, user: AuthUser) => Promise<void> }) {
+  const [accountType, setAccountType] = useState<'staff' | 'patient'>('staff')
   const [email, setEmail] = useState('admin@dentahub.com')
   const [password, setPassword] = useState('admin123')
   const [error, setError] = useState('')
@@ -17,7 +18,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (token: string, user
     setError('')
     setSubmitting(true)
     try {
-      const response = await login(email.trim(), password)
+      const response = accountType === 'patient' ? await patientLogin(email.trim(), password) : await login(email.trim(), password)
       await onLogin(response.token, response.user)
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : 'Unable to sign in.')
@@ -29,11 +30,12 @@ export default function LoginScreen({ onLogin }: { onLogin: (token: string, user
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <View style={styles.brandMark}><Text style={styles.brandMarkText}>✚</Text></View>
-      <Text style={styles.brand}>DentaHub</Text>
+      <Text style={styles.brand}>{clinicName}</Text>
       <Text style={styles.tagline}>Dental care, beautifully organized.</Text>
       <View style={styles.card}>
         <Text style={styles.heading}>Welcome back</Text>
-        <Text style={styles.help}>Sign in to manage your clinic on the go.</Text>
+        <Text style={styles.help}>Sign in to {accountType === 'patient' ? 'your patient portal' : 'manage your clinic on the go'}.</Text>
+        <View style={styles.switcher}><TouchableOpacity onPress={() => { setAccountType('staff'); setError('') }} style={[styles.switchButton, accountType === 'staff' && styles.switchButtonActive]}><Text style={[styles.switchText, accountType === 'staff' && styles.switchTextActive]}>Staff</Text></TouchableOpacity><TouchableOpacity onPress={() => { setAccountType('patient'); setError('') }} style={[styles.switchButton, accountType === 'patient' && styles.switchButtonActive]}><Text style={[styles.switchText, accountType === 'patient' && styles.switchTextActive]}>Patient</Text></TouchableOpacity></View>
         <Text style={styles.label}>Email</Text>
         <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="email-address" style={styles.input} value={email} onChangeText={setEmail} placeholder="you@clinic.com" placeholderTextColor="#9aaab2" />
         <Text style={styles.label}>Password</Text>
@@ -61,4 +63,9 @@ const styles = StyleSheet.create({
   error: { color: '#c34b57', fontSize: 13, marginTop: 14 },
   button: { height: 52, borderRadius: 14, backgroundColor: '#087f8c', alignItems: 'center', justifyContent: 'center', marginTop: 22 },
   buttonText: { color: '#ffffff', fontSize: 15, fontWeight: '800' },
+  switcher: { flexDirection: 'row', backgroundColor: '#edf4f4', borderRadius: 12, padding: 3, marginBottom: 5 },
+  switchButton: { flex: 1, alignItems: 'center', paddingVertical: 9, borderRadius: 9 },
+  switchButtonActive: { backgroundColor: '#ffffff', shadowColor: '#17323d', shadowOpacity: 0.08, shadowRadius: 5, elevation: 1 },
+  switchText: { color: '#71838e', fontSize: 12, fontWeight: '700' },
+  switchTextActive: { color: '#087f8c' },
 })

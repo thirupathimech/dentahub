@@ -60,6 +60,7 @@ export type Patient = {
   medications: string | null
   medicalHistory: string | null
   status: string
+  patientLoginEnabled: boolean
 }
 
 export type PatientAttachment = { id: number; fileName: string; contentType: string; fileSize: number; createdAt: string }

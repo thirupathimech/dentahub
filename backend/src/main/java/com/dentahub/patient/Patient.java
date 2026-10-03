@@ -27,6 +27,10 @@ public class Patient {
     private String phone;
 
     private String email;
+
+    @Column(name = "password_hash")
+    private String passwordHash;
+
     private Long branchId;
     private LocalDate dateOfBirth;
     private String gender;
@@ -71,6 +75,8 @@ public class Patient {
     public void setPhone(String phone) { this.phone = phone; }
     public String getEmail() { return email; }
     public void setEmail(String email) { this.email = email; }
+    public String getPasswordHash() { return passwordHash; }
+    public void setPasswordHash(String passwordHash) { this.passwordHash = passwordHash; }
     public Long getBranchId() { return branchId; }
     public void setBranchId(Long branchId) { this.branchId = branchId; }
     public LocalDate getDateOfBirth() { return dateOfBirth; }

@@ -6,7 +6,7 @@ import { Patient } from '../types'
 import { EmptyState, Screen, ScreenTitle } from '../components/Screen'
 import { readSession } from '../storage'
 
-export default function PatientsScreen() {
+export default function PatientsScreen({ clinicName }: { clinicName: string }) {
   const [patients, setPatients] = useState<Patient[]>([])
   const [query, setQuery] = useState('')
   const [loading, setLoading] = useState(true)
@@ -22,7 +22,7 @@ export default function PatientsScreen() {
   useFocusEffect(useCallback(() => { void load('') }, [load]))
 
   return <Screen scroll={false}>
-    <ScreenTitle title="Patients" subtitle="Find and review your patient records." />
+    <ScreenTitle title="Patients" subtitle={`${clinicName} · Find and review your patient records.`} />
     <TextInput style={styles.search} value={query} onChangeText={setQuery} onSubmitEditing={() => load()} returnKeyType="search" placeholder="Search name, phone, or email" placeholderTextColor="#9aaab2" />
     {loading ? <ActivityIndicator size="large" color="#087f8c" /> : error ? <EmptyState message={error} /> : patients.length === 0 ? <EmptyState message="No patients found." /> : <FlatList data={patients} keyExtractor={(item) => String(item.id)} contentContainerStyle={styles.list} renderItem={({ item }) => <PatientCard patient={item} />} />}
   </Screen>

@@ -25,6 +25,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import com.dentahub.doctor.DoctorRepository;
 import com.dentahub.patient.PatientRepository;
 import com.dentahub.auth.BranchAccessService;
+import com.dentahub.auth.PatientAccessService;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -43,12 +44,42 @@ public class AppointmentController {
     private final PatientRepository patientRepository;
     private final DoctorRepository doctorRepository;
     private final BranchAccessService accessService;
+    private final PatientAccessService patientAccessService;
 
-    public AppointmentController(AppointmentRepository repository, PatientRepository patientRepository, DoctorRepository doctorRepository, BranchAccessService accessService) {
+    public AppointmentController(AppointmentRepository repository, PatientRepository patientRepository, DoctorRepository doctorRepository, BranchAccessService accessService, PatientAccessService patientAccessService) {
         this.repository = repository;
         this.patientRepository = patientRepository;
         this.doctorRepository = doctorRepository;
         this.accessService = accessService;
+        this.patientAccessService = patientAccessService;
+    }
+
+    @GetMapping("/patient")
+    public ResponseEntity<?> listForPatient(@RequestHeader(value = "Authorization", required = false) String authorization) {
+        var patient = patientAccessService.currentPatient(authorization).orElse(null);
+        if (patient == null) return ResponseEntity.status(401).body(new ErrorResponse("Your patient session has expired. Please sign in again."));
+        List<AppointmentResponse> appointments = repository.findAllByOrderByAppointmentDateTimeAsc().stream()
+                .filter(appointment -> appointment.getPatientId().equals(patient.getId()))
+                .map(this::toResponse)
+                .toList();
+        return ResponseEntity.ok(appointments);
+    }
+
+    @PostMapping("/patient")
+    public ResponseEntity<?> createForPatient(@RequestHeader(value = "Authorization", required = false) String authorization,
+            @Valid @RequestBody PatientAppointmentRequest request) {
+        var patient = patientAccessService.currentPatient(authorization).orElse(null);
+        if (patient == null) return ResponseEntity.status(401).body(new ErrorResponse("Your patient session has expired. Please sign in again."));
+        if (!request.appointmentDateTime().isAfter(LocalDateTime.now())) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Please choose a future appointment time."));
+        }
+        var doctor = doctorRepository.findById(request.doctorId()).orElse(null);
+        if (doctor == null || !"ACTIVE".equalsIgnoreCase(doctor.getStatus())) {
+            return ResponseEntity.badRequest().body(new ErrorResponse("Selected doctor is not available."));
+        }
+        AppointmentRequest staffRequest = new AppointmentRequest(patient.getId(), request.doctorId(), request.appointmentDateTime(),
+                request.appointmentEndDateTime(), request.appointmentType(), "SCHEDULED", request.notes(), false, false);
+        return create(authorization, staffRequest);
     }
 
     @GetMapping
@@ -234,6 +265,14 @@ public class AppointmentController {
             String notes,
             boolean overrideConflict,
             boolean walkIn) {
+    }
+
+    public record PatientAppointmentRequest(
+            @NotNull Long doctorId,
+            @NotNull LocalDateTime appointmentDateTime,
+            @NotNull LocalDateTime appointmentEndDateTime,
+            @NotBlank String appointmentType,
+            String notes) {
     }
 
     public record AppointmentResponse(

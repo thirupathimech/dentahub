@@ -14,6 +14,32 @@ export type LoginResponse = {
   user: AuthUser
 }
 
+export type ClinicSettings = { clinicName: string }
+
+export type PortalDoctor = { id: number; fullName: string; specialization: string; branchId: number | null }
+
+export type PortalAppointment = {
+  id: number
+  patientId: number
+  doctorName: string
+  doctorId: number
+  specialization: string
+  appointmentDateTime: string
+  appointmentEndDateTime: string
+  appointmentType: string
+  status: string
+  notes: string | null
+}
+
+export type AdminOverview = {
+  doctors: number
+  branches: number
+  users: number
+  treatments: number
+  invoices: number
+  payments: number
+}
+
 export type DashboardSummary = {
   date: string
   branchId: number | null

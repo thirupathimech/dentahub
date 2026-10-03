@@ -8,6 +8,7 @@ import BranchPage from './pages/BranchPage'
 import DoctorsPage from './pages/DoctorsPage'
 import PatientsPage from './pages/PatientsPage'
 import PatientProfilePage from './pages/PatientProfilePage'
+import PatientPortalPage from './pages/PatientPortalPage'
 import PaymentsPage from './pages/PaymentsPage'
 import SettingsPage from './pages/SettingsPage'
 import TreatmentPlansPage from './pages/TreatmentPlansPage'
@@ -199,6 +200,10 @@ function App() {
     setPermissions([])
     setCurrentUser(null)
     setAuthenticated(false)
+  }
+
+  if (currentUser?.role === 'Patient') {
+    return <PatientPortalPage user={currentUser} branding={branding} onLogout={logout} />
   }
 
   const can = (permission: string) => permissions.includes(permission)
@@ -433,6 +438,7 @@ function PasswordField({ label, value, onChange, autoComplete }: { label: string
 }
 
 function LoginPage({ branding, onLogin }: { branding: Branding; onLogin: () => void }) {
+  const [accountType, setAccountType] = useState<'staff' | 'patient'>('staff')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -445,7 +451,7 @@ function LoginPage({ branding, onLogin }: { branding: Branding; onLogin: () => v
     setSubmitting(true)
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+      const response = await fetch(`${API_BASE_URL}/api/auth/${accountType === 'patient' ? 'patient-login' : 'login'}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
@@ -482,12 +488,13 @@ function LoginPage({ branding, onLogin }: { branding: Branding; onLogin: () => v
       <section className="flex flex-1 items-center justify-center bg-cream px-5 py-10 sm:px-10">
         <div className="w-full max-w-[420px]">
           <div className="mb-8 lg:hidden"><div className="flex items-center gap-3"><span className="flex h-10 w-10 items-center justify-center overflow-hidden rounded-2xl bg-teal-600 text-white">{branding.logoDataUrl ? <img src={branding.logoDataUrl} alt="Clinic logo" className="h-full w-full object-contain" /> : <Stethoscope size={20} />}</span><span className="heading-font max-w-[260px] truncate text-xl font-extrabold text-ink">{branding.clinicName}</span></div></div>
-          <div className="mb-8"><span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-600"><LockKeyhole size={22} /></span><h2 className="heading-font text-2xl font-extrabold text-ink sm:text-3xl">Welcome back</h2><p className="mt-2 text-sm text-muted">Sign in to continue to your clinic workspace.</p></div>
+          <div className="mb-8"><span className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-50 text-teal-600"><LockKeyhole size={22} /></span><h2 className="heading-font text-2xl font-extrabold text-ink sm:text-3xl">Welcome back</h2><p className="mt-2 text-sm text-muted">Sign in to continue to your {accountType === 'patient' ? 'patient portal' : 'clinic workspace'}.</p></div>
+          <div className="mb-6 grid grid-cols-2 rounded-xl bg-slate-100 p-1"><button type="button" onClick={() => { setAccountType('staff'); setError('') }} className={`rounded-lg px-3 py-2 text-xs font-bold transition ${accountType === 'staff' ? 'bg-white text-teal-700 shadow-sm' : 'text-muted'}`}>Staff login</button><button type="button" onClick={() => { setAccountType('patient'); setError('') }} className={`rounded-lg px-3 py-2 text-xs font-bold transition ${accountType === 'patient' ? 'bg-white text-teal-700 shadow-sm' : 'text-muted'}`}>Patient login</button></div>
           <form onSubmit={handleSubmit} className="space-y-5">
-            <label className="block"><span className="mb-2 block text-xs font-bold text-ink">Email address</span><span className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 transition focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><Mail size={17} className="text-muted" /><input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-slate-400" placeholder="you@clinic.com" /></span></label>
+            <label className="block"><span className="mb-2 block text-xs font-bold text-ink">Email address</span><span className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 transition focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><Mail size={17} className="text-muted" /><input type="email" required autoComplete="email" value={email} onChange={(event) => setEmail(event.target.value)} className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-slate-400" placeholder={accountType === 'patient' ? 'patient@email.com' : 'you@clinic.com'} /></span></label>
             <label className="block"><span className="mb-2 block text-xs font-bold text-ink">Password</span><span className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white px-3.5 py-3 transition focus-within:border-teal-500 focus-within:ring-4 focus-within:ring-teal-500/10"><LockKeyhole size={17} className="text-muted" /><input type={showPassword ? 'text' : 'password'} required autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} className="w-full bg-transparent text-sm text-ink outline-none placeholder:text-slate-400" placeholder="Enter your password" /><button type="button" aria-label={showPassword ? 'Hide password' : 'Show password'} onClick={() => setShowPassword((value) => !value)} className="text-xs font-bold text-muted hover:text-teal-700">{showPassword ? 'Hide' : 'Show'}</button></span></label>
             {error && <p className="rounded-xl bg-rose-50 px-3.5 py-3 text-xs font-semibold text-rose-600">{error}</p>}
-            <button type="submit" disabled={submitting} className="flex w-full items-center justify-center rounded-xl bg-teal-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-600/20 transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Signing in...' : `Sign in to ${branding.clinicName}`}<span className="ml-2">→</span></button>
+            <button type="submit" disabled={submitting} className="flex w-full items-center justify-center rounded-xl bg-teal-600 px-4 py-3.5 text-sm font-bold text-white shadow-lg shadow-teal-600/20 transition hover:bg-teal-700 disabled:cursor-not-allowed disabled:opacity-60">{submitting ? 'Signing in...' : accountType === 'patient' ? 'Sign in to patient portal' : `Sign in to ${branding.clinicName}`}<span className="ml-2">→</span></button>
           </form>
           <p className="mt-8 text-center text-xs text-muted">Need access? Contact your clinic administrator.</p>
         </div>

@@ -5,9 +5,9 @@ import { getApiBaseUrl } from '../api'
 
 export default function MoreScreen({ user, onLogout }: { user: AuthUser; onLogout: () => Promise<void> }) {
   return <Screen>
-    <ScreenTitle title="More" subtitle="Account and mobile app settings." />
+    <ScreenTitle title="More" subtitle={`${user.clinicName} · Account and mobile app settings.`} />
     <View style={styles.profile}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name.slice(0, 1).toUpperCase()}</Text></View><Text style={styles.name}>{user.name}</Text><Text style={styles.email}>{user.email}</Text><Text style={styles.role}>{user.role}</Text></View>
-    <View style={styles.info}><Text style={styles.infoLabel}>Connected API</Text><Text style={styles.infoValue}>{getApiBaseUrl()}</Text></View>
+    <View style={styles.info}><Text style={styles.infoLabel}>Clinic</Text><Text style={styles.infoValue}>{user.clinicName}</Text></View><View style={styles.info}><Text style={styles.infoLabel}>Connected API</Text><Text style={styles.infoValue}>{getApiBaseUrl()}</Text></View>
     <TouchableOpacity style={styles.logout} onPress={onLogout}><Text style={styles.logoutText}>Sign out</Text></TouchableOpacity>
   </Screen>
 }

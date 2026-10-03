@@ -6,7 +6,7 @@ import { Appointment } from '../types'
 import { EmptyState, Screen, ScreenTitle } from '../components/Screen'
 import { readSession } from '../storage'
 
-export default function AppointmentsScreen() {
+export default function AppointmentsScreen({ clinicName }: { clinicName: string }) {
   const [appointments, setAppointments] = useState<Appointment[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -21,7 +21,7 @@ export default function AppointmentsScreen() {
   useFocusEffect(useCallback(() => { void load() }, [load]))
 
   return <Screen>
-    <ScreenTitle title="Appointments" subtitle="Today's clinic schedule." />
+    <ScreenTitle title="Appointments" subtitle={`${clinicName} · Today's clinic schedule.`} />
     {loading ? <ActivityIndicator size="large" color="#087f8c" /> : error ? <EmptyState message={error} /> : appointments.length === 0 ? <EmptyState message="No appointments scheduled for today." /> : appointments.map((appointment) => <AppointmentCard key={appointment.id} appointment={appointment} />)}
   </Screen>
 }

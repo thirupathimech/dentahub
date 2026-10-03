@@ -13,6 +13,9 @@ import org.springframework.web.bind.annotation.RestController;
 import com.dentahub.role.RoleRepository;
 import com.dentahub.user.UserAccount;
 import com.dentahub.user.UserRepository;
+import com.dentahub.patient.Patient;
+import com.dentahub.patient.PatientRepository;
+import com.dentahub.settings.ClinicSettingsRepository;
 
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -36,6 +39,8 @@ public class AuthController {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
     private final AuthSettingsRepository authSettingsRepository;
+    private final PatientRepository patientRepository;
+    private final ClinicSettingsRepository clinicSettingsRepository;
 
     public AuthController(
             @Value("${APP_ADMIN_EMAIL:admin@dentahub.com}") String adminEmail,
@@ -45,7 +50,9 @@ public class AuthController {
             UserRepository userRepository,
             RoleRepository roleRepository,
             PasswordEncoder passwordEncoder,
-            AuthSettingsRepository authSettingsRepository) {
+            AuthSettingsRepository authSettingsRepository,
+            PatientRepository patientRepository,
+            ClinicSettingsRepository clinicSettingsRepository) {
         this.adminEmail = adminEmail;
         this.adminPassword = adminPassword;
         this.adminName = adminName;
@@ -54,6 +61,22 @@ public class AuthController {
         this.roleRepository = roleRepository;
         this.passwordEncoder = passwordEncoder;
         this.authSettingsRepository = authSettingsRepository;
+        this.patientRepository = patientRepository;
+        this.clinicSettingsRepository = clinicSettingsRepository;
+    }
+
+    @PostMapping("/patient-login")
+    public ResponseEntity<?> patientLogin(@Valid @RequestBody PatientLoginRequest request) {
+        Patient patient = patientRepository.findByEmailIgnoreCase(request.email().trim()).orElse(null);
+        if (patient == null || !"ACTIVE".equalsIgnoreCase(patient.getStatus()) || patient.getPasswordHash() == null
+                || !passwordEncoder.matches(request.password(), patient.getPasswordHash())) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(new ErrorResponse("Invalid patient email or password"));
+        }
+
+        return ResponseEntity.ok(new LoginResponse(
+                "dentahub-patient-session-" + patient.getId(),
+                new UserProfile("patient-" + patient.getId(), patient.getFullName(), patient.getEmail(), "Patient", currentClinicName(),
+                        List.of("patient-portal"), patient.getBranchId(), false)));
     }
 
     @PostMapping("/login")
@@ -70,7 +93,7 @@ public class AuthController {
             String roleName = role == null ? "User" : role.getName();
             return ResponseEntity.ok(new LoginResponse(
                     "dentahub-user-session-" + databaseUser.getId(),
-                    new UserProfile(String.valueOf(databaseUser.getId()), databaseUser.getFullName(), databaseUser.getEmail(), roleName, clinicName,
+                    new UserProfile(String.valueOf(databaseUser.getId()), databaseUser.getFullName(), databaseUser.getEmail(), roleName, currentClinicName(),
                             role == null ? List.of() : MenuPermissions.asList(role.getPermissions()), databaseUser.getBranchId(), role != null && role.isBranchScoped())));
         }
         if (!adminEmail.equalsIgnoreCase(request.email()) || !matchesAdminPassword(request.password())) {
@@ -79,7 +102,7 @@ public class AuthController {
 
         return ResponseEntity.ok(new LoginResponse(
                 "dentahub-demo-session",
-                new UserProfile("admin", adminName.isBlank() ? adminEmail : adminName, adminEmail, "Administrator", clinicName, MenuPermissions.ALL, null, false)));
+                new UserProfile("admin", adminName.isBlank() ? adminEmail : adminName, adminEmail, "Administrator", currentClinicName(), MenuPermissions.ALL, null, false)));
     }
 
     @PostMapping("/change-password")
@@ -139,6 +162,18 @@ public class AuthController {
     }
 
     public record LoginRequest(
+            @NotBlank @Email String email,
+            @NotBlank String password) {
+    }
+
+    private String currentClinicName() {
+        return clinicSettingsRepository.findFirstByOrderByIdAsc()
+                .map(settings -> settings.getClinicName())
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(clinicName);
+    }
+
+    public record PatientLoginRequest(
             @NotBlank @Email String email,
             @NotBlank String password) {
     }
