@@ -7,20 +7,26 @@
     "userInterfaceStyle": "light",
     "scheme": "dentahub",
     "icon": "./assets/dentahub-icon.png",
+
     "android": {
       "package": "com.dentahub.mobile",
+      "versionCode": 1,
       "usesCleartextTraffic": true,
+
       "adaptiveIcon": {
         "foregroundImage": "./assets/dentahub-icon.png",
         "backgroundColor": "#087f8c"
       }
     },
+
     "extra": {
       "eas": {
         "projectId": "25fadfbe-25ef-4c3b-b6e0-2fe21982d686"
       }
     },
+
     "owner": "thirupathimech",
+
     "plugins": [
       "expo-asset",
       "@react-native-community/datetimepicker",
