@@ -17,7 +17,7 @@ npm install
 npm start
 ```
 
-The default API URL is `http://10.0.2.2:8080`, which points an Android emulator to the host machine. For a physical phone, set `EXPO_PUBLIC_API_BASE_URL` in `.env` to the computer's LAN IP, for example `http://192.168.1.10:8080`.
+The default API URL is `http://10.0.2.2:8080`, which points an Android emulator to the host machine. For a physical phone, set `EXPO_PUBLIC_API_BASE_URL` in `.env` to the computer's LAN IP, for example `http://192.168.1.10:8080`. Standalone Android builds allow HTTP endpoints for this configurable LAN/development URL; for production, prefer an HTTPS API with a valid certificate.
 
 ## Android APK
 
@@ -30,3 +30,5 @@ npm run build:android
 ```
 
 `build:android` produces an installable Android preview artifact. Update the Android package name or app icon in `app.json` before publishing to the Play Store.
+
+After changing `.env`, build a new APK because Expo public environment values are bundled at build time. The 7-tap connection settings can change the API URL on an already-installed APK and persist it on the device.

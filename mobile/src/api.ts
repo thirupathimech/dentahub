@@ -2,11 +2,15 @@ import { AdminOverview, Appointment, AppointmentConflict, AuthUser, BillingInvoi
 
 declare const process: { env: { EXPO_PUBLIC_API_BASE_URL?: string } }
 
-export const DEFAULT_API_BASE_URL = (process.env.EXPO_PUBLIC_API_BASE_URL || 'http://10.0.2.2:8080').replace(/\/$/, '')
+function normalizeApiBaseUrl(value: string) {
+  return value.trim().replace(/\/+$/, '')
+}
+
+export const DEFAULT_API_BASE_URL = normalizeApiBaseUrl(process.env.EXPO_PUBLIC_API_BASE_URL || 'http://10.0.2.2:8080')
 let API_BASE_URL = DEFAULT_API_BASE_URL
 
 export function configureApiBaseUrl(value: string | null | undefined) {
-  API_BASE_URL = (value?.trim() || DEFAULT_API_BASE_URL).replace(/\/$/, '')
+  API_BASE_URL = normalizeApiBaseUrl(value || '') || DEFAULT_API_BASE_URL
 }
 
 export class ApiError extends Error {

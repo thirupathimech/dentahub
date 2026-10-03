@@ -6,9 +6,12 @@
     "orientation": "portrait",
     "userInterfaceStyle": "light",
     "scheme": "dentahub",
+    "icon": "./assets/dentahub-icon.png",
     "android": {
       "package": "com.dentahub.mobile",
+      "usesCleartextTraffic": true,
       "adaptiveIcon": {
+        "foregroundImage": "./assets/dentahub-icon.png",
         "backgroundColor": "#087f8c"
       }
     },
@@ -20,7 +23,8 @@
     "owner": "thirupathimech",
     "plugins": [
       "expo-asset",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      "./plugins/withCleartextTraffic"
     ]
   }
 }

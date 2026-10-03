@@ -4,6 +4,8 @@ import { configureApiBaseUrl, DEFAULT_API_BASE_URL, getApiBaseUrl, login, patien
 import { saveApiBaseUrl } from '../storage'
 import { AuthUser } from '../types'
 
+const defaultLogo = require('../../assets/dentahub-icon.png')
+
 export default function LoginScreen({ clinicName, logoDataUrl, onLogin }: { clinicName: string; logoDataUrl: string; onLogin: (token: string, user: AuthUser) => Promise<void> }) {
   const [accountType, setAccountType] = useState<'staff' | 'patient'>('staff')
   const [email, setEmail] = useState('admin@dentahub.com')
@@ -85,7 +87,7 @@ export default function LoginScreen({ clinicName, logoDataUrl, onLogin }: { clin
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <TouchableOpacity onPress={handleLogoTap} activeOpacity={0.85} style={styles.brandMark}>{logoDataUrl ? <Image source={{ uri: logoDataUrl }} accessibilityLabel={`${clinicName} logo`} resizeMode="contain" style={styles.brandImage} /> : null}</TouchableOpacity>
+      <TouchableOpacity onPress={handleLogoTap} activeOpacity={0.85} style={styles.brandMark}><Image source={logoDataUrl ? { uri: logoDataUrl } : defaultLogo} accessibilityLabel={`${clinicName} logo`} resizeMode="contain" style={styles.brandImage} /></TouchableOpacity>
       <Text style={styles.brand}>{clinicName}</Text>
       <Text style={styles.tagline}>Dental care, beautifully organized.</Text>
       <View style={styles.card}>

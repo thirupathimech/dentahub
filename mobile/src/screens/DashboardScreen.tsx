@@ -6,6 +6,8 @@ import { AuthUser, DashboardSummary } from '../types'
 import { EmptyState, Screen } from '../components/Screen'
 import { readSession } from '../storage'
 
+const defaultLogo = require('../../assets/dentahub-icon.png')
+
 function money(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`
 }
@@ -31,7 +33,7 @@ export default function DashboardScreen({ user, logoDataUrl }: { user: AuthUser;
 
   return <Screen scroll refreshing={refreshing} onRefresh={() => { void load(true) }}>
     <View style={styles.hero}>
-      <View style={styles.heroTop}><View style={styles.avatar}>{logoDataUrl ? <Image source={{ uri: logoDataUrl }} accessibilityLabel={`${user.clinicName} logo`} resizeMode="contain" style={styles.logoImage} /> : null}</View><View style={styles.heroCopy}><Text style={styles.heroEyebrow}>Good day, {user.name.split(' ')[0]}</Text><Text style={styles.heroTitle}>Your clinic at a glance</Text><Text style={styles.heroClinic}>{user.clinicName || 'DentaHub'}</Text></View><View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View></View>
+      <View style={styles.heroTop}><View style={styles.avatar}><Image source={logoDataUrl ? { uri: logoDataUrl } : defaultLogo} accessibilityLabel={`${user.clinicName} logo`} resizeMode="contain" style={styles.logoImage} /></View><View style={styles.heroCopy}><Text style={styles.heroEyebrow}>Good day, {user.name.split(' ')[0]}</Text><Text style={styles.heroTitle}>Your clinic at a glance</Text><Text style={styles.heroClinic}>{user.clinicName || 'DentaHub'}</Text></View><View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View></View>
       <TouchableOpacity style={styles.refreshButton} onPress={() => { void load(true) }} disabled={refreshing}><Text style={styles.refreshText}>{refreshing ? 'Refreshing…' : '↻  Refresh overview'}</Text></TouchableOpacity>
     </View>
     <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Clinic at a glance</Text><Text style={styles.sectionSubtitle}>A complete view of your clinic activity</Text></View><Text style={styles.sectionHint}>Updated now</Text></View>
