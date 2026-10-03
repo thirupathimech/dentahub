@@ -3,6 +3,7 @@ import { AuthUser } from './types'
 
 const TOKEN_KEY = 'dentahub_token'
 const USER_KEY = 'dentahub_user'
+const API_BASE_URL_KEY = 'dentahub_api_base_url'
 
 export async function saveSession(token: string, user: AuthUser) {
   await Promise.all([
@@ -27,4 +28,13 @@ export async function readSession(): Promise<{ token: string; user: AuthUser } |
 
 export async function clearSession() {
   await Promise.all([AsyncStorage.removeItem(TOKEN_KEY), AsyncStorage.removeItem(USER_KEY)])
+}
+
+export async function readApiBaseUrl() {
+  return AsyncStorage.getItem(API_BASE_URL_KEY)
+}
+
+export async function saveApiBaseUrl(value: string | null) {
+  if (value) await AsyncStorage.setItem(API_BASE_URL_KEY, value)
+  else await AsyncStorage.removeItem(API_BASE_URL_KEY)
 }

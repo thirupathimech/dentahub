@@ -1,14 +1,70 @@
-import { useState } from 'react'
-import { ActivityIndicator, KeyboardAvoidingView, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
-import { login, patientLogin } from '../api'
+import { useRef, useState } from 'react'
+import { ActivityIndicator, Image, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { configureApiBaseUrl, DEFAULT_API_BASE_URL, getApiBaseUrl, login, patientLogin } from '../api'
+import { saveApiBaseUrl } from '../storage'
 import { AuthUser } from '../types'
 
-export default function LoginScreen({ clinicName, onLogin }: { clinicName: string; onLogin: (token: string, user: AuthUser) => Promise<void> }) {
+export default function LoginScreen({ clinicName, logoDataUrl, onLogin }: { clinicName: string; logoDataUrl: string; onLogin: (token: string, user: AuthUser) => Promise<void> }) {
   const [accountType, setAccountType] = useState<'staff' | 'patient'>('staff')
   const [email, setEmail] = useState('admin@dentahub.com')
   const [password, setPassword] = useState('admin123')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const [apiSettingsOpen, setApiSettingsOpen] = useState(false)
+  const [apiBaseUrl, setApiBaseUrl] = useState(getApiBaseUrl())
+  const [apiError, setApiError] = useState('')
+  const [apiSaving, setApiSaving] = useState(false)
+  const logoTapCount = useRef(0)
+  const logoTapTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const handleLogoTap = () => {
+    logoTapCount.current += 1
+    if (logoTapCount.current >= 7) {
+      logoTapCount.current = 0
+      if (logoTapTimer.current) clearTimeout(logoTapTimer.current)
+      setApiBaseUrl(getApiBaseUrl())
+      setApiError('')
+      setApiSettingsOpen(true)
+      return
+    }
+    if (logoTapTimer.current) clearTimeout(logoTapTimer.current)
+    logoTapTimer.current = setTimeout(() => { logoTapCount.current = 0 }, 1600)
+  }
+
+  const saveApiSettings = async () => {
+    const value = apiBaseUrl.trim().replace(/\/$/, '')
+    try {
+      const parsed = new URL(value)
+      if (!['http:', 'https:'].includes(parsed.protocol)) throw new Error('Use an http:// or https:// URL.')
+    } catch {
+      setApiError('Enter a valid API URL, for example http://192.168.1.10:8080')
+      return
+    }
+    setApiSaving(true)
+    try {
+      await saveApiBaseUrl(value)
+      configureApiBaseUrl(value)
+      setApiSettingsOpen(false)
+      setError('API URL saved. You can sign in now.')
+    } catch {
+      setApiError('Unable to save the API URL.')
+    } finally {
+      setApiSaving(false)
+    }
+  }
+
+  const resetApiSettings = async () => {
+    setApiSaving(true)
+    try {
+      await saveApiBaseUrl(null)
+      configureApiBaseUrl(null)
+      setApiBaseUrl(DEFAULT_API_BASE_URL)
+      setApiSettingsOpen(false)
+      setError('API URL reset to the app default.')
+    } finally {
+      setApiSaving(false)
+    }
+  }
 
   const submit = async () => {
     if (!email.trim() || !password) {
@@ -29,7 +85,7 @@ export default function LoginScreen({ clinicName, onLogin }: { clinicName: strin
 
   return (
     <KeyboardAvoidingView style={styles.screen} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <View style={styles.brandMark}><Text style={styles.brandMarkText}>✚</Text></View>
+      <TouchableOpacity onPress={handleLogoTap} activeOpacity={0.85} style={styles.brandMark}>{logoDataUrl ? <Image source={{ uri: logoDataUrl }} accessibilityLabel={`${clinicName} logo`} resizeMode="contain" style={styles.brandImage} /> : null}</TouchableOpacity>
       <Text style={styles.brand}>{clinicName}</Text>
       <Text style={styles.tagline}>Dental care, beautifully organized.</Text>
       <View style={styles.card}>
@@ -45,14 +101,24 @@ export default function LoginScreen({ clinicName, onLogin }: { clinicName: strin
           {submitting ? <ActivityIndicator color="#ffffff" /> : <Text style={styles.buttonText}>Sign in</Text>}
         </TouchableOpacity>
       </View>
+      <Modal visible={apiSettingsOpen} transparent animationType="fade" onRequestClose={() => setApiSettingsOpen(false)}>
+        <View style={styles.modalBackdrop}><View style={styles.apiCard}>
+          <Text style={styles.apiTitle}>Connection settings</Text>
+          <Text style={styles.apiHelp}>Update the backend address used by this mobile app.</Text>
+          <Text style={styles.label}>EXPO_PUBLIC_API_BASE_URL</Text>
+          <TextInput autoCapitalize="none" autoCorrect={false} keyboardType="url" value={apiBaseUrl} onChangeText={setApiBaseUrl} style={styles.input} placeholder="http://192.168.1.10:8080" placeholderTextColor="#9aaab2" />
+          {apiError ? <Text style={styles.error}>{apiError}</Text> : null}
+          <View style={styles.apiActions}><TouchableOpacity disabled={apiSaving} onPress={() => setApiSettingsOpen(false)} style={styles.cancelButton}><Text style={styles.cancelText}>Cancel</Text></TouchableOpacity><TouchableOpacity disabled={apiSaving} onPress={() => { void resetApiSettings() }} style={styles.resetButton}><Text style={styles.resetText}>Reset</Text></TouchableOpacity><TouchableOpacity disabled={apiSaving} onPress={() => { void saveApiSettings() }} style={styles.saveButton}><Text style={styles.saveText}>{apiSaving ? 'Saving...' : 'Save'}</Text></TouchableOpacity></View>
+        </View></View>
+      </Modal>
     </KeyboardAvoidingView>
   )
 }
 
 const styles = StyleSheet.create({
   screen: { flex: 1, justifyContent: 'center', padding: 24, backgroundColor: '#eff8f7' },
-  brandMark: { alignSelf: 'center', width: 64, height: 64, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: '#087f8c', marginBottom: 12 },
-  brandMarkText: { color: '#ffffff', fontSize: 30, fontWeight: '800' },
+  brandMark: { alignSelf: 'center', width: 88, height: 88, alignItems: 'center', justifyContent: 'center', backgroundColor: 'transparent', marginBottom: 12 },
+  brandImage: { width: '100%', height: '100%' },
   brand: { color: '#17323d', fontSize: 32, fontWeight: '800', textAlign: 'center' },
   tagline: { color: '#71838e', textAlign: 'center', marginTop: 6, marginBottom: 28 },
   card: { backgroundColor: '#ffffff', borderRadius: 24, padding: 22, shadowColor: '#17323d', shadowOpacity: 0.08, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3 },
@@ -68,4 +134,15 @@ const styles = StyleSheet.create({
   switchButtonActive: { backgroundColor: '#ffffff', shadowColor: '#17323d', shadowOpacity: 0.08, shadowRadius: 5, elevation: 1 },
   switchText: { color: '#71838e', fontSize: 12, fontWeight: '700' },
   switchTextActive: { color: '#087f8c' },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(23,50,61,0.38)', alignItems: 'center', justifyContent: 'center', padding: 22 },
+  apiCard: { width: '100%', borderRadius: 22, padding: 21, backgroundColor: '#ffffff', shadowColor: '#17323d', shadowOpacity: 0.15, shadowRadius: 20, elevation: 5 },
+  apiTitle: { color: '#17323d', fontSize: 20, fontWeight: '800' },
+  apiHelp: { color: '#71838e', fontSize: 12, lineHeight: 18, marginTop: 6, marginBottom: 17 },
+  apiActions: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 20 },
+  cancelButton: { paddingHorizontal: 10, paddingVertical: 11 },
+  cancelText: { color: '#71838e', fontSize: 12, fontWeight: '800' },
+  resetButton: { borderRadius: 11, backgroundColor: '#fff0f1', paddingHorizontal: 13, paddingVertical: 11 },
+  resetText: { color: '#c34b57', fontSize: 12, fontWeight: '800' },
+  saveButton: { borderRadius: 11, backgroundColor: '#087f8c', paddingHorizontal: 15, paddingVertical: 11 },
+  saveText: { color: '#ffffff', fontSize: 12, fontWeight: '800' },
 })

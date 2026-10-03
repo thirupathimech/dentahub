@@ -161,6 +161,7 @@ function App() {
       const clinicName = clinicLabel(settings.clinicName)
       setBranding((current) => ({ ...current, clinicName, logoDataUrl: settings.logoDataUrl ?? '' }))
       localStorage.setItem('dentahub_clinic_name', clinicName)
+      document.title = clinicName
       const favicon = document.querySelector<HTMLLinkElement>('link[rel="icon"]')
       if (favicon) favicon.href = settings.logoDataUrl || '/favicon.svg'
     }

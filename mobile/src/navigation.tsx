@@ -117,10 +117,11 @@ function ScrollableTabBar({ state, descriptors, navigation, iconForRoute }: Bott
   return <View style={styles.scrollTabBar}><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.scrollTabContent}>{state.routes.map((route, index) => { const { options } = descriptors[route.key]; const focused = state.index === index; const label = typeof options.tabBarLabel === 'string' ? options.tabBarLabel : options.title ?? route.name; const onPress = () => { const event = navigation.emit({ type: 'tabPress', target: route.key, canPreventDefault: true }); if (!focused && !event.defaultPrevented) navigation.navigate(route.name, route.params) }; return <TouchableOpacity key={route.key} accessibilityRole="button" accessibilityState={focused ? { selected: true } : {}} accessibilityLabel={options.tabBarAccessibilityLabel} onPress={onPress} style={[styles.scrollTab, focused && styles.scrollTabActive]}><Text style={[styles.tabIcon, { color: focused ? '#087f8c' : '#8a98a7' }]}>{iconForRoute(route.name)}</Text><Text style={[styles.tabLabel, { color: focused ? '#087f8c' : '#8a98a7' }]}>{label}</Text></TouchableOpacity> })}</ScrollView></View>
 }
 
-export default function Navigation({ session, loading, clinicName, onLogin, onLogout, onSettingsSaved }: {
+export default function Navigation({ session, loading, clinicName, clinicLogo, onLogin, onLogout, onSettingsSaved }: {
   session: { token: string; user: AuthUser } | null
   loading: boolean
   clinicName: string
+  clinicLogo: string
   onLogin: (token: string, user: AuthUser) => Promise<void>
   onLogout: () => Promise<void>
   onSettingsSaved: (settings: ClinicSettings) => Promise<void>
@@ -138,7 +139,7 @@ export default function Navigation({ session, loading, clinicName, onLogin, onLo
           </Stack.Screen>
         ) : (
           <Stack.Screen name="Login">
-            {() => <LoginScreen clinicName={clinicName} onLogin={onLogin} />}
+            {() => <LoginScreen clinicName={clinicName} logoDataUrl={clinicLogo} onLogin={onLogin} />}
           </Stack.Screen>
         )}
       </Stack.Navigator>

@@ -3,19 +3,24 @@ import { StatusBar } from 'expo-status-bar'
 import { AppState } from 'react-native'
 import { SafeAreaProvider } from 'react-native-safe-area-context'
 import Navigation from './src/navigation'
-import { clearSession, readSession, saveSession } from './src/storage'
+import { clearSession, readApiBaseUrl, readSession, saveSession } from './src/storage'
 import { AuthUser } from './src/types'
-import { getClinicSettings } from './src/api'
+import { configureApiBaseUrl, getClinicSettings } from './src/api'
 
 export default function App() {
   const [session, setSession] = useState<{ token: string; user: AuthUser } | null>(null)
   const [loading, setLoading] = useState(true)
   const [clinicName, setClinicName] = useState('DentaHub')
+  const [clinicLogo, setClinicLogo] = useState('')
 
   useEffect(() => {
-    Promise.all([readSession(), getClinicSettings().catch(() => null)]).then(([storedSession, settings]) => {
+    readApiBaseUrl().then((apiBaseUrl) => {
+      configureApiBaseUrl(apiBaseUrl)
+      return Promise.all([readSession(), getClinicSettings().catch(() => null)])
+    }).then(([storedSession, settings]) => {
       const resolvedClinicName = settings?.clinicName?.trim() || storedSession?.user.clinicName || 'DentaHub'
       setClinicName(resolvedClinicName)
+      setClinicLogo(settings?.logoDataUrl ?? '')
       setSession(storedSession ? { ...storedSession, user: { ...storedSession.user, clinicName: resolvedClinicName } } : null)
     }).finally(() => setLoading(false))
   }, [])
@@ -27,6 +32,7 @@ export default function App() {
         const nextName = settings.clinicName?.trim()
         if (!nextName) return
         setClinicName(nextName)
+        setClinicLogo(settings.logoDataUrl ?? '')
         setSession((current) => current ? { ...current, user: { ...current.user, clinicName: nextName } } : current)
       }).catch(() => undefined)
     })
@@ -47,6 +53,7 @@ export default function App() {
   const handleSettingsSaved = async (settings: Awaited<ReturnType<typeof getClinicSettings>>) => {
     const nextClinicName = settings.clinicName?.trim() || 'DentaHub'
     setClinicName(nextClinicName)
+    setClinicLogo(settings.logoDataUrl ?? '')
     setSession((current) => current ? { ...current, user: { ...current.user, clinicName: nextClinicName } } : current)
     const current = await readSession()
     if (current) await saveSession(current.token, { ...current.user, clinicName: nextClinicName })
@@ -55,7 +62,7 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-    <Navigation session={session} loading={loading} clinicName={clinicName} onLogin={handleLogin} onLogout={handleLogout} onSettingsSaved={handleSettingsSaved} />
+    <Navigation session={session} loading={loading} clinicName={clinicName} clinicLogo={clinicLogo} onLogin={handleLogin} onLogout={handleLogout} onSettingsSaved={handleSettingsSaved} />
     </SafeAreaProvider>
   )
 }
