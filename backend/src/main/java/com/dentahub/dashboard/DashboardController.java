@@ -43,11 +43,12 @@ public class DashboardController {
     }
 
     @GetMapping("/summary")
-    public DashboardSummary summary(@RequestParam(required = false) Long branchId, @RequestHeader(value = "Authorization", required = false) String authorization) {
+    public DashboardSummary summary(@RequestParam(required = false) Long branchId, @RequestParam(required = false) LocalDate date,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
         Long selectedBranch = accessService.scopedBranch(authorization).orElse(branchId);
-        LocalDate today = LocalDate.now();
-        LocalDateTime start = today.atStartOfDay();
-        LocalDateTime end = today.plusDays(1).atStartOfDay();
+        LocalDate selectedDate = date == null ? LocalDate.now() : date;
+        LocalDateTime start = selectedDate.atStartOfDay();
+        LocalDateTime end = selectedDate.plusDays(1).atStartOfDay();
         List<DashboardAppointment> appointments = appointmentRepository.findByAppointmentDateTimeBetweenOrderByAppointmentDateTimeAsc(start, end).stream()
                 .filter(appointment -> doctorRepository.findById(appointment.getDoctorId()).map(doctor -> accessService.canAccess(authorization, doctor.getBranchId()) && matchesBranch(doctor.getBranchId(), selectedBranch)).orElse(false))
                 .map(appointment -> new DashboardAppointment(
@@ -61,10 +62,10 @@ public class DashboardController {
         long totalPatients = patientRepository.findAll().stream().filter(patient -> accessService.canAccess(authorization, patient.getBranchId()) && matchesBranch(patient.getBranchId(), selectedBranch)).count();
         long totalDoctors = doctorRepository.findAll().stream().filter(doctor -> accessService.canAccess(authorization, doctor.getBranchId()) && matchesBranch(doctor.getBranchId(), selectedBranch)).count();
         long totalBranches = branchRepository.findAll().stream().filter(branch -> accessService.canAccess(authorization, branch.getId()) && matchesBranch(branch.getId(), selectedBranch)).count();
-        var branchInvoices = invoiceRepository.findAllByOrderByCreatedAtDesc().stream().filter(invoice -> accessService.canAccess(authorization, invoice.getBranchId()) && matchesBranch(invoice.getBranchId(), selectedBranch)).toList();
+        var branchInvoices = invoiceRepository.findAllByOrderByCreatedAtDesc().stream().filter(invoice -> accessService.canAccess(authorization, invoice.getBranchId()) && matchesBranch(invoice.getBranchId(), selectedBranch) && selectedDate.equals(invoice.getIssueDate())).toList();
         BigDecimal billed = branchInvoices.stream().filter(invoice -> !"VOID".equals(invoice.getStatus())).map(invoice -> invoiceTotal(invoice)).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal collected = branchInvoices.stream().map(invoice -> paymentRepository.findByInvoiceId(invoice.getId()).stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add)).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new DashboardSummary(today, selectedBranch, totalPatients, appointments.size(), totalDoctors, totalBranches, billed, collected, billed.subtract(collected).max(BigDecimal.ZERO), appointments);
+        BigDecimal collected = branchInvoices.stream().flatMap(invoice -> paymentRepository.findByInvoiceId(invoice.getId()).stream()).filter(payment -> selectedDate.equals(payment.getPaymentDate())).map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new DashboardSummary(selectedDate, selectedBranch, totalPatients, appointments.size(), totalDoctors, totalBranches, billed, collected, billed.subtract(collected).max(BigDecimal.ZERO), appointments);
     }
 
     private static boolean matchesBranch(Long actual, Long selected) { return selected == null || selected.equals(actual); }

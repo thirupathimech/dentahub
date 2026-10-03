@@ -44,10 +44,18 @@ export default function App() {
     setSession(null)
   }
 
+  const handleSettingsSaved = async (settings: Awaited<ReturnType<typeof getClinicSettings>>) => {
+    const nextClinicName = settings.clinicName?.trim() || 'DentaHub'
+    setClinicName(nextClinicName)
+    setSession((current) => current ? { ...current, user: { ...current.user, clinicName: nextClinicName } } : current)
+    const current = await readSession()
+    if (current) await saveSession(current.token, { ...current.user, clinicName: nextClinicName })
+  }
+
   return (
     <SafeAreaProvider>
       <StatusBar style="dark" />
-    <Navigation session={session} loading={loading} clinicName={clinicName} onLogin={handleLogin} onLogout={handleLogout} />
+    <Navigation session={session} loading={loading} clinicName={clinicName} onLogin={handleLogin} onLogout={handleLogout} onSettingsSaved={handleSettingsSaved} />
     </SafeAreaProvider>
   )
 }
