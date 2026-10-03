@@ -8,7 +8,7 @@ import DashboardScreen from './screens/DashboardScreen'
 import PatientsScreen from './screens/PatientsScreen'
 import AppointmentsScreen from './screens/AppointmentsScreen'
 import MoreScreen from './screens/MoreScreen'
-import PatientPortalScreen from './screens/PatientPortalScreen'
+import PatientPortalScreen, { PatientPortalSection } from './screens/PatientPortalScreen'
 import AdminScreen from './screens/AdminScreen'
 import DoctorsScreen from './screens/DoctorsScreen'
 import TreatmentsScreen from './screens/TreatmentsScreen'
@@ -44,7 +44,7 @@ export type MainTabParamList = {
   Admin: undefined
 }
 
-export type PatientTabParamList = { Portal: undefined; More: undefined }
+export type PatientTabParamList = { Overview: undefined; Appointments: undefined; Bills: undefined; Payments: undefined; More: undefined }
 
 const Stack = createNativeStackNavigator<RootStackParamList>()
 const Tabs = createBottomTabNavigator<MainTabParamList>()
@@ -77,8 +77,12 @@ function headerOptions(clinicName: string, onLogout: () => Promise<void>) {
 }
 
 function PatientTabNavigator({ user, onLogout }: { user: AuthUser; onLogout: () => Promise<void> }) {
-  return <PatientTabs.Navigator tabBar={(props) => <ScrollableTabBar {...props} iconForRoute={(name) => name === 'Portal' ? '▣' : '•••'} />} screenOptions={headerOptions(user.clinicName, onLogout)}>
-    <PatientTabs.Screen name="Portal">{() => <PatientPortalScreen clinicName={user.clinicName} />}</PatientTabs.Screen>
+  const patientSection = (name: string): PatientPortalSection => name.toLowerCase() as PatientPortalSection
+  return <PatientTabs.Navigator tabBar={(props) => <ScrollableTabBar {...props} iconForRoute={(name) => name === 'Overview' ? '⌂' : name === 'Appointments' ? '▣' : name === 'Bills' ? '▤' : name === 'Payments' ? '₹' : '•••'} />} screenOptions={headerOptions(user.clinicName, onLogout)}>
+    <PatientTabs.Screen name="Overview">{() => <PatientPortalScreen clinicName={user.clinicName} section={patientSection('overview')} />}</PatientTabs.Screen>
+    <PatientTabs.Screen name="Appointments">{() => <PatientPortalScreen clinicName={user.clinicName} section={patientSection('appointments')} />}</PatientTabs.Screen>
+    <PatientTabs.Screen name="Bills">{() => <PatientPortalScreen clinicName={user.clinicName} section={patientSection('bills')} />}</PatientTabs.Screen>
+    <PatientTabs.Screen name="Payments">{() => <PatientPortalScreen clinicName={user.clinicName} section={patientSection('payments')} />}</PatientTabs.Screen>
     <PatientTabs.Screen name="More">{() => <MoreScreen user={user} onLogout={onLogout} />}</PatientTabs.Screen>
   </PatientTabs.Navigator>
 }

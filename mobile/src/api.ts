@@ -415,6 +415,14 @@ export function getPatientPortalAppointments(token: string) {
   return request<PortalAppointment[]>('/api/patient-portal/appointments', token)
 }
 
+export function getPatientPortalInvoices(token: string) {
+  return request<BillingInvoice[]>('/api/patient-portal/invoices', token)
+}
+
+export function getPatientPortalPayments(token: string) {
+  return request<Payment[]>('/api/patient-portal/payments', token)
+}
+
 export function bookPatientAppointment(token: string, payload: { doctorId: number; appointmentDateTime: string; appointmentEndDateTime: string; appointmentType: string; notes: string }) {
   return request<PortalAppointment>('/api/appointments/patient', token, { method: 'POST', body: JSON.stringify(payload) })
 }
