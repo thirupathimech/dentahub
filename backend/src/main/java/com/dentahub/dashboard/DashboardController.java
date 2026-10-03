@@ -43,14 +43,17 @@ public class DashboardController {
     }
 
     @GetMapping("/summary")
-    public DashboardSummary summary(@RequestParam(required = false) Long branchId, @RequestParam(required = false) LocalDate date,
+    public DashboardSummary summary(@RequestParam(required = false) Long branchId,
             @RequestHeader(value = "Authorization", required = false) String authorization) {
         Long selectedBranch = accessService.scopedBranch(authorization).orElse(branchId);
-        LocalDate selectedDate = date == null ? LocalDate.now() : date;
-        LocalDateTime start = selectedDate.atStartOfDay();
-        LocalDateTime end = selectedDate.plusDays(1).atStartOfDay();
-        List<DashboardAppointment> appointments = appointmentRepository.findByAppointmentDateTimeBetweenOrderByAppointmentDateTimeAsc(start, end).stream()
+        LocalDate today = LocalDate.now();
+        LocalDateTime now = LocalDateTime.now();
+        List<com.dentahub.appointment.Appointment> accessibleAppointments = appointmentRepository.findAllByOrderByAppointmentDateTimeAsc().stream()
                 .filter(appointment -> doctorRepository.findById(appointment.getDoctorId()).map(doctor -> accessService.canAccess(authorization, doctor.getBranchId()) && matchesBranch(doctor.getBranchId(), selectedBranch)).orElse(false))
+                .toList();
+        List<DashboardAppointment> appointments = accessibleAppointments.stream()
+                .filter(appointment -> !appointment.getAppointmentDateTime().isBefore(now))
+                .limit(10)
                 .map(appointment -> new DashboardAppointment(
                         appointment.getAppointmentDateTime(),
                         patientRepository.findById(appointment.getPatientId()).map(patient -> patient.getFullName()).orElse("Unknown patient"),
@@ -62,10 +65,11 @@ public class DashboardController {
         long totalPatients = patientRepository.findAll().stream().filter(patient -> accessService.canAccess(authorization, patient.getBranchId()) && matchesBranch(patient.getBranchId(), selectedBranch)).count();
         long totalDoctors = doctorRepository.findAll().stream().filter(doctor -> accessService.canAccess(authorization, doctor.getBranchId()) && matchesBranch(doctor.getBranchId(), selectedBranch)).count();
         long totalBranches = branchRepository.findAll().stream().filter(branch -> accessService.canAccess(authorization, branch.getId()) && matchesBranch(branch.getId(), selectedBranch)).count();
-        var branchInvoices = invoiceRepository.findAllByOrderByCreatedAtDesc().stream().filter(invoice -> accessService.canAccess(authorization, invoice.getBranchId()) && matchesBranch(invoice.getBranchId(), selectedBranch) && selectedDate.equals(invoice.getIssueDate())).toList();
-        BigDecimal billed = branchInvoices.stream().filter(invoice -> !"VOID".equals(invoice.getStatus())).map(invoice -> invoiceTotal(invoice)).reduce(BigDecimal.ZERO, BigDecimal::add);
-        BigDecimal collected = branchInvoices.stream().flatMap(invoice -> paymentRepository.findByInvoiceId(invoice.getId()).stream()).filter(payment -> selectedDate.equals(payment.getPaymentDate())).map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
-        return new DashboardSummary(selectedDate, selectedBranch, totalPatients, appointments.size(), totalDoctors, totalBranches, billed, collected, billed.subtract(collected).max(BigDecimal.ZERO), appointments);
+        var branchInvoices = invoiceRepository.findAllByOrderByCreatedAtDesc().stream().filter(invoice -> accessService.canAccess(authorization, invoice.getBranchId()) && matchesBranch(invoice.getBranchId(), selectedBranch) && !"VOID".equalsIgnoreCase(invoice.getStatus())).toList();
+        BigDecimal billed = branchInvoices.stream().map(DashboardController::invoiceTotal).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal collected = branchInvoices.stream().flatMap(invoice -> paymentRepository.findByInvoiceId(invoice.getId()).stream()).map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add);
+        BigDecimal outstanding = branchInvoices.stream().map(invoice -> invoiceTotal(invoice).subtract(paymentRepository.findByInvoiceId(invoice.getId()).stream().map(Payment::getAmount).reduce(BigDecimal.ZERO, BigDecimal::add)).max(BigDecimal.ZERO)).reduce(BigDecimal.ZERO, BigDecimal::add);
+        return new DashboardSummary(today, selectedBranch, totalPatients, accessibleAppointments.size(), totalDoctors, totalBranches, billed, collected, outstanding, appointments);
     }
 
     private static boolean matchesBranch(Long actual, Long selected) { return selected == null || selected.equals(actual); }

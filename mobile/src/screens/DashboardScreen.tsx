@@ -4,15 +4,10 @@ import { useFocusEffect } from '@react-navigation/native'
 import { getDashboard } from '../api'
 import { AuthUser, DashboardSummary } from '../types'
 import { EmptyState, Screen } from '../components/Screen'
-import DateTimeField from '../components/DateTimeField'
 import { readSession } from '../storage'
 
 function money(value: number) {
   return `₹${Number(value || 0).toLocaleString('en-IN')}`
-}
-
-function localDateKey(date = new Date()) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
 export default function DashboardScreen({ user }: { user: AuthUser }) {
@@ -20,37 +15,34 @@ export default function DashboardScreen({ user }: { user: AuthUser }) {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState('')
-  const [dashboardDate, setDashboardDate] = useState(localDateKey)
-
   const load = useCallback(async (refresh = false) => {
     if (refresh) setRefreshing(true); else setLoading(true)
     try {
       const session = await readSession()
       if (!session) return
-      setSummary(await getDashboard(session.token, dashboardDate))
+      setSummary(await getDashboard(session.token))
       setError('')
     }
     catch (requestError) { setError(requestError instanceof Error ? requestError.message : 'Could not load dashboard.') }
     finally { setLoading(false); setRefreshing(false) }
-  }, [dashboardDate])
+  }, [])
 
   useFocusEffect(useCallback(() => { void load() }, [load]))
 
   return <Screen scroll refreshing={refreshing} onRefresh={() => { void load(true) }}>
     <View style={styles.hero}>
       <View style={styles.heroTop}><View style={styles.avatar}><Text style={styles.avatarText}>{user.name.slice(0, 1).toUpperCase()}</Text></View><View style={styles.heroCopy}><Text style={styles.heroEyebrow}>Good day, {user.name.split(' ')[0]}</Text><Text style={styles.heroTitle}>Your clinic at a glance</Text><Text style={styles.heroClinic}>{user.clinicName || 'DentaHub'}</Text></View><View style={styles.liveBadge}><View style={styles.liveDot} /><Text style={styles.liveText}>LIVE</Text></View></View>
-      <View style={styles.dateFilter}><Text style={styles.dateFilterLabel}>Dashboard date</Text><DateTimeField value={dashboardDate} onChange={setDashboardDate} placeholder="Choose date" /></View>
       <TouchableOpacity style={styles.refreshButton} onPress={() => { void load(true) }} disabled={refreshing}><Text style={styles.refreshText}>{refreshing ? 'Refreshing…' : '↻  Refresh overview'}</Text></TouchableOpacity>
     </View>
-    <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Today at a glance</Text><Text style={styles.sectionSubtitle}>A quick view of your clinic activity</Text></View><Text style={styles.sectionHint}>Updated now</Text></View>
+    <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Clinic at a glance</Text><Text style={styles.sectionSubtitle}>A complete view of your clinic activity</Text></View><Text style={styles.sectionHint}>Updated now</Text></View>
     {loading && !summary ? <ActivityIndicator size="large" color="#087f8c" /> : error ? <EmptyState message={error} /> : summary ? <>
       <View style={styles.grid}>
         <View style={styles.gridRow}><Metric icon="♙" label="Patients" value={summary.totalPatients.toLocaleString()} color="#e4f5f2" /><Metric icon="▣" label="Appointments" value={String(summary.todayAppointments)} color="#eaf1ff" /></View>
         <View style={styles.gridRow}><Metric icon="⚕" label="Doctors" value={String(summary.totalDoctors)} color="#f2ebff" /><Metric icon="₹" label="Outstanding" value={money(summary.totalOutstanding)} color="#fff2e6" /></View>
       </View>
-      <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Appointments on selected date</Text><Text style={styles.sectionSubtitle}>Your patient visits for {new Date(`${summary.date}T00:00:00`).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</Text></View><Text style={styles.sectionHint}>{summary.appointments.length} scheduled</Text></View>
+      <View style={styles.sectionHeader}><View><Text style={styles.sectionTitle}>Upcoming appointments</Text><Text style={styles.sectionSubtitle}>Your next scheduled patient visits</Text></View><Text style={styles.sectionHint}>{summary.todayAppointments} total</Text></View>
       <View style={styles.card}>
-        {summary.appointments.length === 0 ? <Text style={styles.muted}>No appointments scheduled for today.</Text> : summary.appointments.map((appointment) => <View key={`${appointment.appointmentDateTime}-${appointment.patient}`} style={styles.appointment}><View style={styles.timePill}><Text style={styles.time}>{new Date(appointment.appointmentDateTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</Text></View><View style={styles.appointmentBody}><Text style={styles.patient}>{appointment.patient}</Text><Text style={styles.muted}>{appointment.appointmentType} · {appointment.doctor}</Text></View><Text style={styles.status}>{appointment.status.replace('_', ' ')}</Text></View>)}
+        {summary.appointments.length === 0 ? <Text style={styles.muted}>No upcoming appointments scheduled.</Text> : summary.appointments.map((appointment) => <View key={`${appointment.appointmentDateTime}-${appointment.patient}`} style={styles.appointment}><View style={styles.timePill}><Text style={styles.time}>{new Date(appointment.appointmentDateTime).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}</Text></View><View style={styles.appointmentBody}><Text style={styles.patient}>{appointment.patient}</Text><Text style={styles.muted}>{appointment.appointmentType} · {appointment.doctor}</Text></View><Text style={styles.status}>{appointment.status.replace('_', ' ')}</Text></View>)}
       </View>
       <View style={styles.financeCard}><View style={styles.financeHeader}><View><Text style={styles.sectionTitle}>Financial snapshot</Text><Text style={styles.sectionSubtitle}>This clinic's billing overview</Text></View><Text style={styles.financeIcon}>₹</Text></View><View style={styles.finance}><Finance label="Billed" value={money(summary.totalBilled)} /><Finance label="Collected" value={money(summary.totalCollected)} /></View></View>
     </> : null}
@@ -74,8 +66,6 @@ const styles = StyleSheet.create({
   liveText: { color: '#ffffff', fontSize: 9, fontWeight: '800', letterSpacing: 0.6 },
   refreshButton: { alignSelf: 'flex-start', backgroundColor: 'rgba(255,255,255,0.15)', borderRadius: 10, paddingHorizontal: 11, paddingVertical: 8, marginTop: 16 },
   refreshText: { color: '#ffffff', fontSize: 11, fontWeight: '800' },
-  dateFilter: { marginTop: 17 },
-  dateFilterLabel: { color: '#c8f0eb', fontSize: 10, fontWeight: '800', marginBottom: 5 },
   grid: { gap: 12 },
   gridRow: { flexDirection: 'row', gap: 12 },
   metric: { flex: 1, minHeight: 116, borderRadius: 18, padding: 15, justifyContent: 'space-between' },
